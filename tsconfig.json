@@ -11,7 +11,8 @@
     "rootDir": "./",
     "strict": true,
     "module": "commonjs",
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
   },
   "include": [
     "**/*"

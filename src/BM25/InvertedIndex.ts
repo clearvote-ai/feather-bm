@@ -1,80 +1,53 @@
+import { DocumentIndex, IndexedDocument, InvertedIndex } from "./BM25";
 import { expandQueryToTokens } from "./WinkUtilsWrapper"
-
-
-
-export type InvertedIndex = { [word: string] : 
-{ 
-    value : { [doc_id: number]: number }
-    inverseDocumentFrequency: number,
-}}  
-
-export interface DocumentIndex
-{
-    invertedIndex: InvertedIndex,
-    document_token_counts: { [doc_id: number]: number }
-    averageDocumentLength: number,
-    documentCount: number,
-    IDToUUIDMap: { [doc_id: number]: string }
-    UUIDToIDMap: { [uuid: string]: number }
-    //TODO: add a document uuid -> to simple doc number mapping to save space
-}
-
-export interface IndexedDocument {
-    sortkey: string,
-    full_text: string
-}
 
 
 //build the inverted index from documents passed in and return an DocumentIndex object to be saved to S3
 export async function buildInvertedIndex(documents: IndexedDocument[]) : Promise<DocumentIndex>
 {
     const invertedIndex : InvertedIndex = {};
-    const documentLengths : { [doc_id: number]: number } = {};
-    var averageDocumentLength : number = 0;
+    let averageDocumentLength : number = 0;
 
-    const document_token_counts : { [doc_id: number]: number } = {};
-
-    //build the UUIDToIDMap then the IDToUUIDMap
-    const UUIDToIDMap : { [x: string]: number } = documents.map((doc, index) => ({ [doc.sortkey]: index })).reduce((a, b) => ({ ...a, ...b }));
-    const IDToUUIDMap : { [x: number]: string } = documents.map((doc, index) => ({ [index]: doc.sortkey })).reduce((a, b) => ({ ...a, ...b }));
-
-    var i = 0;
+    const document_token_counts : { [ sortkey: string ]: number } = {};
 
     for(const document of documents)
     {
-        const doc_id = UUIDToIDMap[document.sortkey];
         const words = await expandQueryToTokens(document.full_text);
         const token_count = words.length;
-        document_token_counts[doc_id] = token_count;
+        document_token_counts[document.sortkey] = token_count;
+        const uniqueWords = new Set<string>();
+
         for(const word of words)
         {
-            if(!invertedIndex.hasOwnProperty(word)) invertedIndex[word] = { 
-                value: { [doc_id]: 1}, 
-                inverseDocumentFrequency: 0
-            };
-
-            if(!invertedIndex[word].hasOwnProperty('value')) {
-                console.log("Value not found in inverted index: ", JSON.stringify(invertedIndex[word]));
-                invertedIndex[word].value = {};
+            if(!invertedIndex.hasOwnProperty(word)) invertedIndex[word] = {
+                documents: { [ document.sortkey ]: 1}, 
+                inverseDocumentFrequency: 0 
             }
 
-            if(!invertedIndex[word].value.hasOwnProperty(doc_id)) invertedIndex[word].value[doc_id] = 0;
-            invertedIndex[word].value[doc_id]++;
-            invertedIndex[word].inverseDocumentFrequency++;
-        }
+            if(!invertedIndex[word].hasOwnProperty('documents')) {
+                console.log("word not found in inverted index: ", JSON.stringify(invertedIndex[word])); 
+                invertedIndex[word].documents = {}; 
+            }
 
-        documentLengths[doc_id] = words.length;
+            if(!invertedIndex[word].documents.hasOwnProperty(document.sortkey)) invertedIndex[word].documents[document.sortkey] = 0;
+
+            invertedIndex[word].documents[document.sortkey]++;
+
+            if (!uniqueWords.has(word)) {
+                invertedIndex[word].inverseDocumentFrequency++;
+                uniqueWords.add(word);
+            }
+        }
         averageDocumentLength += words.length;
-        i++;
     }
+
+    averageDocumentLength = averageDocumentLength / documents.length;
 
     return { 
         invertedIndex, 
         document_token_counts, 
-        averageDocumentLength: averageDocumentLength / documents.length, 
-        documentCount: documents.length,
-        IDToUUIDMap,
-        UUIDToIDMap 
+        averageDocumentLength, 
+        documentCount: documents.length 
     };
 
 }
