@@ -1,7 +1,7 @@
 var nlp_utils = require( 'wink-nlp-utils' );
 
 
-export async function expandQueryToTokens(query: string) : Promise<string[]>
+export function expandQueryToTokens(query: string) : string[]
 {
     const lowerCase = nlp_utils.string.lowerCase( query );
     const tokens = nlp_utils.string.tokenize0( lowerCase );

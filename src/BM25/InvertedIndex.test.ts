@@ -1,5 +1,5 @@
-import test_docs from "../test_data/arkansas_2023.json";
-import { IndexedDocument } from "./BM25";
+import test_docs from "./test_data/arkansas_2023.json";
+import { IndexedDocument } from "./InvertedIndex";
 import { buildInvertedIndex } from "./InvertedIndex";
 import { computeBM25ScoresConcurrent } from "./Search";
 
@@ -15,7 +15,7 @@ const DYNAMODB_WRITE_REQUEST_PRICE = DYNAMODB_WRITE_REQUEST_PER_1M/1_000_000;
 const S3_READ_REQUEST_PER_1K = 0.0004;
 const S3_READ_REQUEST_PRICE = S3_READ_REQUEST_PER_1K/1_000;
 
-describe('Search', () => {
+describe('InvertedIndex', () => {
     test('build index', async () => {
 
         const docs = test_docs as IndexedDocument[];
@@ -37,24 +37,6 @@ describe('Search', () => {
         console.log("Min documents per word: ", min_documents_per_word);
 
         expect(true).toBe(true);
-    });
-
-    
-    test('query', async () => {
-        const docs = test_docs as IndexedDocument[];
-
-        const index = await buildInvertedIndex(docs);
-
-        const query = "franchise tax";
-
-        const {
-            stats,
-            scores
-        } = await computeBM25ScoresConcurrent(query, index);
-
-        console.log("Query Stats: ", stats);
-        console.log("Scores: ", scores);
-        
     });
 
 });

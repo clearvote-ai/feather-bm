@@ -3,4 +3,4 @@ node_modules
 .build
 .vscode
 
-src/test_data/*
+src/BM25/test_data/*
