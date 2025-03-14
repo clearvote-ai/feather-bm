@@ -30,20 +30,7 @@ export type FeatherBMQueryResult = {
 }
 
 
-export abstract class FeatherBMIndex
-{
-    abstract getInvertedIndexEntry(token: string) : Promise<InvertedIndexEntry | undefined>;
-    abstract getAverageDocumentLength() : Promise<number>;
-    async query(query: string) : Promise<FeatherBMQueryResult>
-    {
-        const start_time = performance.now();
-        const scores = await computeBM25ScoresConcurrent(query, this);
-        const end_time = performance.now();
-        const time_taken = end_time - start_time;
-        return { scores, stats: { inverted_index_gets: scores.length, time_taken_in_ms: time_taken } };
-    }
 
-}
 
 export interface IndexedDocument 
 {
@@ -52,7 +39,7 @@ export interface IndexedDocument
 }
 
 //build the inverted index from documents passed in and return an DocumentIndex object to be saved to S3
-export function buildInvertedIndex(documents: IndexedDocument[]) : {
+export function buildInvertedIndexLegacy(documents: IndexedDocument[]) : {
     invertedIndex: InvertedIndex,
     document_token_counts: { [ sortkey: string ]: number },
     averageDocumentLength: number,

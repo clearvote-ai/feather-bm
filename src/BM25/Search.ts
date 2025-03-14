@@ -1,6 +1,7 @@
 import PromisePool from "@supercharge/promise-pool";
-import { BM25Score, FeatherBMIndex, QueryStats } from "./InvertedIndex";
+import { BM25Score, QueryStats } from "./InvertedIndex";
 import { expandQueryToTokens } from "./NLPUtils";
+import { FeatherBMIndex } from "../Adapters/Adapter";
 
 //change this depending on your DB API rate limits and core count
 const MAX_CONCURRENT_QUERIES = 4;
@@ -22,7 +23,7 @@ export async function computeBM25ScoresConcurrent<A extends FeatherBMIndex>(quer
     })
     .process(async (token, index, pool) => {
         
-        const entry = await document_index.getInvertedIndexEntry(token);
+        const entry = await document_index.getEntry(token);
 
         if(entry === undefined || entry === null) {
             console.log("Token not found in inverted index: ", token);
