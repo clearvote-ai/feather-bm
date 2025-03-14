@@ -1,25 +1,25 @@
-import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
-import { buildInvertedIndexLegacy, IndexedDocument, InvertedIndex, InvertedIndexEntry } from "../BM25/InvertedIndex";
+import { BatchWriteCommand, DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { buildInvertedEndexEntries, IndexedDocument, InverseDocumentValue, InvertedIndex, InvertedIndexEntry } from "../BM25/InvertedIndex";
 import { FeatherBMIndex } from "./Adapter";
 
 
-type DynamoDBIndexDocumentUUID = string;
 type DynamoDBIndexToken = string;
 
-interface DynamoDBIndexTokenEntry {
+//TODO: combine tokens into one flat entry
+export interface DynamoDBIndexEntry {
     index_name: string,
-    sortkey: `${DynamoDBIndexToken}#${DynamoDBIndexDocumentUUID}`,
-    termFrequency: number,
-    documentLength: number
+    sortkey: `${DynamoDBIndexToken}`,
+    documents: InverseDocumentValue[],
+    idf: number
 }
 
-interface DynamoDBIndexInverseDocumentFrequencyEntry {
+export interface DynamoDBIndexGlobalEntry {
     index_name: string,
-    sortkey: `${DynamoDBIndexToken}#IDF`,
-    inverseDocumentFrequency: number
+    sortkey: "global",
+    averageDocumentLength: number,
+    documentCount: number
 }
 
-type DynamoDBIndexEntry = DynamoDBIndexTokenEntry | DynamoDBIndexInverseDocumentFrequencyEntry;
 
 
 export class DynamoDBIndex extends FeatherBMIndex
@@ -29,118 +29,145 @@ export class DynamoDBIndex extends FeatherBMIndex
     table_name: string;
     index_name: string;
     averageDocumentLength: number;
+    documentCount: number;
 
-    private constructor(client: DynamoDBDocumentClient, table_name: string, index_name: string, averageDocumentLength: number)
+    private constructor(client: DynamoDBDocumentClient, table_name: string, index_name: string, averageDocumentLength: number, documentCount: number)
     {
         super();
         this.client = client;
         this.table_name = table_name;
         this.index_name = index_name;
         this.averageDocumentLength = averageDocumentLength;
+        this.documentCount = documentCount;
     }
 
     static async from(client: DynamoDBDocumentClient, table_name: string, index_name: string): Promise<DynamoDBIndex>
     {
-        const index = new DynamoDBIndex(client, table_name, index_name, 0);
-        index.averageDocumentLength = await index.lookupAverageDocumentLength();
+        const index = new DynamoDBIndex(client, table_name, index_name, 0, 0);
+        const global_entry = await index.getDynamoDBGlobalEntry();
+        index.averageDocumentLength = global_entry.averageDocumentLength;
+        index.documentCount = global_entry.documentCount;
 
         return index;
     }
 
     async getEntry(token: string): Promise<InvertedIndexEntry | undefined> {
-        const db_entries = await this.getDynamoDBIndexEntries(token);
-        if(db_entries.length === 0) return undefined;
+        const entries = await this.getDynamoDBIndexEntry(token);
+        if(entries.length === 0) return undefined;
 
-        const entry : InvertedIndexEntry = {
-            documents: {},
-            inverseDocumentFrequency: 0
-        };
-
-        for(const db_entry of db_entries)
-        {
-            if(db_entry.sortkey.endsWith("#IDF")) {
-                entry.inverseDocumentFrequency = (db_entry as DynamoDBIndexInverseDocumentFrequencyEntry).inverseDocumentFrequency;
-            } else {
-                const [token, doc_id] = db_entry.sortkey.split("#");
-                if(!entry.documents.hasOwnProperty(doc_id)) entry.documents[doc_id] = { termFrequency: 0, documentLength: 0 };
-                entry.documents[doc_id] = {
-                    termFrequency: (db_entry as DynamoDBIndexTokenEntry).termFrequency,
-                    documentLength: (db_entry as DynamoDBIndexTokenEntry).documentLength
-                }
+        //if multiple entries are returned, combine them into a single entry
+        const combined_entry = entries.reduce((acc, entry) => {
+            if(acc.documents === undefined) acc.documents = [];
+            for(const doc_id in entry.documents)
+            {
+                //there should be no duplicate doc_ids
+                acc.documents.push(entry.documents[doc_id]);
             }
-        }
 
-        return entry;
-    }
+            return acc;
+        });
 
-    private async lookupAverageDocumentLength(): Promise<number>
-    {
-        const params = {
-            TableName: this.table_name,
-            KeyConditionExpression: "index_name = :index_name AND begins_with(sortkey, :sortkey)",
-            ExpressionAttributeValues: {
-                ":index_name": this.index_name,
-                ":sortkey": "averageDocumentLength"
-            },
-          };
-        
-        try {
-            const data = await this.client.send(new QueryCommand(params));
-            if(data.Items === undefined) return 0;
-            return data.Items[0].averageDocumentLength as number;
-        } catch (error) {
-            console.error("Error:", error);
-        }
+        //IDF is only on the first entry
+        combined_entry.idf = entries[0].idf;
 
-        return 0;
+        return combined_entry;
     }
 
     async getAverageDocumentLength(): Promise<number> {
         return this.averageDocumentLength;
     }
 
-    async insert_document(sortkey: string, full_text: string): Promise<void> {
-        //TODO: 1. take the full_text and split it into InvertedIndexEntries
-        //TODO: 2. Split the inverted index entries into DynamoDBIndexEntries
-        //TODO: 3. Batch and combine the entries into a single batch write
-        //TODO: 4. Write the batch to the DynamoDB table
+    async insert(document: IndexedDocument): Promise<void> {
+        this.insert_batch([document]);
+    }
 
-        const values = [{ sortkey: sortkey, full_text: full_text } as IndexedDocument];
-        const index_entries = buildInvertedIndexLegacy(values);
-        const entry_count = Object.keys(index_entries.invertedIndex).length;
-        const db_entries : DynamoDBIndexEntry[] = [];
+    async insert_batch(documents: IndexedDocument[]): Promise<void> {
 
-        for(const [token, entry] of Object.entries(index_entries.invertedIndex))
+        const index_entries = buildInvertedEndexEntries(documents);
+        const entry_count = Object.keys(index_entries).length;
+        const db_entries : DynamoDBIndexEntry[] = Object.keys(index_entries).map(token => {
+            return {
+                index_name: this.index_name,
+                sortkey: token,
+                documents: index_entries[token].documents,
+                idf: index_entries[token].idf
+            };
+        });
+
+        //split into batches of 25
+        const MAX_BATCH_SIZE = 25;
+        for(let i = 0; i < entry_count; i += MAX_BATCH_SIZE)
         {
-            db_entries.push({
-                sortkey: `${token}#IDF`,
-                inverseDocumentFrequency: entry.inverseDocumentFrequency
-            } as DynamoDBIndexInverseDocumentFrequencyEntry);
+            const batch = db_entries.slice(i, i + MAX_BATCH_SIZE);
+            const put_requests = batch.map(entry => {
+                return {
+                    PutRequest: {
+                        Item: entry
+                    }
+                };
+            });
 
-            for(const [doc_id, doc_entry] of Object.entries(entry.documents))
-            {
-                db_entries.push({
-                    sortkey: `${token}#${doc_id}`,
-                    termFrequency: doc_entry.termFrequency,
-                    documentLength: doc_entry.documentLength
-                } as DynamoDBIndexTokenEntry);
+            const params = {
+                TableName : this.table_name,
+                RequestItems: {
+                    [this.table_name]: put_requests
+                }
+            };
+
+            try {
+                await this.client.send(new BatchWriteCommand(params));
+            } catch (error) {
+                console.error("Error:", error);
             }
         }
 
-        const writes = db_entries.map(entry => {
-            return {
-                PutRequest: {
-                    Item: entry
-                }
-            }
-        });
+        //TODO: handle collisions inside the documents object for parallel writes
+
+        //update the global entry
+        const averageDocumentLength = documents.reduce((acc, doc) => acc + doc.full_text.length, 0) / documents.length;
+        const global_entry = {
+            index_name: this.index_name,
+            sortkey: "global",
+            averageDocumentLength: averageDocumentLength
+        };
+
+        const params = {
+            TableName: this.table_name,
+            Item: global_entry
+        };
+
+        try {
+            await this.client.send(new PutCommand(params));
+        } catch (error) {
+            console.error("Error:", error);
+        }
     }
     
-    delete_document(sortkey: string): Promise<void> {
+    delete(sortkey: string): Promise<void> {
         throw new Error("Method not implemented.");
     }
 
-    async getDynamoDBIndexEntries(token: string): Promise<DynamoDBIndexEntry[]> {
+    async getDynamoDBGlobalEntry(): Promise<DynamoDBIndexGlobalEntry> {
+        const params = {
+            TableName: this.table_name,
+            Key: {
+                index_name: this.index_name,
+                sortkey: "global"
+            }
+        };
+        
+        try {
+            const data = await this.client.send(new GetCommand(params));
+            if(data.Item === undefined) return { index_name: this.index_name, sortkey: "global", averageDocumentLength: 0 , documentCount: 0};
+            return data.Item as DynamoDBIndexGlobalEntry;
+        } catch (error) {
+            console.error("Error:", error);
+        }
+
+        return { index_name: this.index_name, sortkey: "global", averageDocumentLength: 0 , documentCount: 0};
+    }
+
+    async getDynamoDBIndexEntry(token: string): Promise<DynamoDBIndexEntry[]> {
         const params = {
             TableName: this.table_name,
             KeyConditionExpression: "index_name = :index_name AND begins_with(sortkey, :sortkey)",
@@ -148,7 +175,7 @@ export class DynamoDBIndex extends FeatherBMIndex
                 ":index_name": this.index_name,
                 ":sortkey": token
             },
-          };
+        };
         
         try {
             const data = await this.client.send(new QueryCommand(params));

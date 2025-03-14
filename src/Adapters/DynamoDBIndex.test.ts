@@ -43,6 +43,16 @@ describe('DynamoDB', () => {
         const client = DynamoDBDocumentClient.from(local_dynamo_client);
         const index = await DynamoDBIndex.from(client, "test_table", "test_index");
 
-        await index.insert_document(test_doc.sortkey, test_doc.full_text);
-    });
+        await index.insert_batch(docs);
+    }, 100000);
+
+
+    test('query', async () => {
+        const client = DynamoDBDocumentClient.from(local_dynamo_client);
+        const index = await DynamoDBIndex.from(client, "test_table", "test_index");
+
+        const scores = await index.query("franchise tax");
+
+        console.log(scores);
+    }, 100000);
 });

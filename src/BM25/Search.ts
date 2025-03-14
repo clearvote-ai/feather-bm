@@ -30,12 +30,12 @@ export async function computeBM25ScoresConcurrent<A extends FeatherBMIndex>(quer
             return {};
         }
 
-        const scores : BM25Score[] = Object.keys(entry.documents).map(doc_id => {
-            const termFrequency = entry.documents[doc_id].termFrequency;
-            const documentLength = entry.documents[doc_id].documentLength;
-            const inverseDocumentFrequency = entry.inverseDocumentFrequency;
+        const scores : BM25Score[] = entry.documents.map(doc => {
+            const termFrequency = doc.tf;
+            const documentLength = doc.len;
+            const inverseDocumentFrequency = entry.idf;
 
-            return { doc_id, score: computeBM25Score(inverseDocumentFrequency, termFrequency, documentLength, averageDocumentLength) };
+            return { id: doc.id, score: computeBM25Score(inverseDocumentFrequency, termFrequency, documentLength, averageDocumentLength) };
         });
 
         return scores;
@@ -57,7 +57,7 @@ function aggregatePerTokenScores(scores: [BM25Score[]]) : BM25Score[]
 {
     return scores.reduce((acc, val) => {
         val.forEach(score => {
-            const existing_score = acc.find(s => s.doc_id === score.doc_id);
+            const existing_score = acc.find(s => s.id === score.id);
             if(existing_score) existing_score.score += score.score;
             else acc.push(score);
         });

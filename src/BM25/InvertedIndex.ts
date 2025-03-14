@@ -1,15 +1,20 @@
 import { expandQueryToTokens } from "./NLPUtils"
-import { computeBM25ScoresConcurrent } from "./Search";
+
+export type InvertedIndexToken = string;
+export type InvertedIndexTimeStamp = string;
+//TODO: combine token and timestamp into one sortkey
+export type InvertedIndexEntrySortKey = `${InvertedIndexToken}`;
 
 //we need these fields to be able to compute a BM25 score : inverseDocumentFrequency: number, termFrequency: number, documentLength: number, averageDocumentLength: number
-export type InvertedIndex = { [ token: string ] : InvertedIndexEntry }
+export type InvertedIndex = { [ sortkey: string ] : InvertedIndexEntry }
 
 //The InvertedIndexEntry only contains the token_x_document specific fields
-export type InvertedIndexEntry = { documents: { [doc_id: string]: { termFrequency: number, documentLength: number } }, inverseDocumentFrequency: number }
+export type InvertedIndexEntry = { documents: InverseDocumentValue[], idf: number, }
+
+export type InverseDocumentValue = { id: string, tf: number, len: number }
 
 //we also need a global statistics object to keep up with the averageDocumentLength and the document_token_counts
 export interface InvertedIndexGlobalStatistics {
-    document_token_counts: { [ doc_id: string ] : number },
     averageDocumentLength: number,
     documentCount: number
 }
@@ -20,7 +25,7 @@ export interface QueryStats {
 }
 
 export interface BM25Score {
-    doc_id: string,
+    id: string,
     score: number
 }
 
@@ -29,15 +34,53 @@ export type FeatherBMQueryResult = {
     stats: QueryStats
 }
 
-
-
-
 export interface IndexedDocument 
 {
     sortkey: string,
     full_text: string 
 }
 
+function getInverseDocumentValues(document: IndexedDocument) : { [token: string] : InverseDocumentValue }
+{
+    const words = expandQueryToTokens(document.full_text);
+    const token_count = words.length;
+    const uniqueWords = new Set<string>();
+
+    const values : { [token: string] : InverseDocumentValue } = {};
+
+    for(const word of words)
+    {
+        if(!values.hasOwnProperty(word)) values[word] = { id: document.sortkey, tf: 0, len: token_count };
+        values[word].tf++;
+
+        if (!uniqueWords.has(word)) {
+            uniqueWords.add(word);
+        }
+    }
+
+    return values;
+}
+
+export function buildInvertedEndexEntries(documents: IndexedDocument[]) : InvertedIndex
+{
+    const invertedIndex : InvertedIndex = {};
+
+    for(const document of documents)
+    {
+        const values = getInverseDocumentValues(document);
+
+        for(const token in values)
+        {
+            if(!invertedIndex.hasOwnProperty(token)) invertedIndex[token] = { documents: [], idf: 0 };
+            invertedIndex[token].documents.push(values[token]);
+            invertedIndex[token].idf++;
+        }
+    }
+
+    return invertedIndex;
+}
+
+/*
 //build the inverted index from documents passed in and return an DocumentIndex object to be saved to S3
 export function buildInvertedIndexLegacy(documents: IndexedDocument[]) : {
     invertedIndex: InvertedIndex,
@@ -94,4 +137,4 @@ export function buildInvertedIndexLegacy(documents: IndexedDocument[]) : {
         documentCount: documents.length 
     };
 
-}
+}*/
