@@ -1,5 +1,5 @@
 import { BatchWriteCommand, DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
-import { buildInvertedEndexEntries, IndexedDocument, InverseDocumentValue, InvertedIndex, InvertedIndexEntry } from "../BM25/InvertedIndex";
+import { buildInvertedEndexEntries, IndexedDocument, InverseDocumentValue, InvertedIndex, InvertedIndexEntry, InvertedIndexGlobalStatistics } from "../BM25/InvertedIndex";
 import { FeatherBMIndex } from "./Adapter";
 
 
@@ -13,14 +13,12 @@ export interface DynamoDBIndexEntry {
     idf: number
 }
 
-export interface DynamoDBIndexGlobalEntry {
+export interface DynamoDBIndexGlobalEntryFields {
     index_name: string,
     sortkey: "global",
-    averageDocumentLength: number,
-    documentCount: number
 }
 
-
+export type DynamoDBIndexGlobalEntry = DynamoDBIndexGlobalEntryFields & InvertedIndexGlobalStatistics;
 
 export class DynamoDBIndex extends FeatherBMIndex
 {
@@ -28,7 +26,8 @@ export class DynamoDBIndex extends FeatherBMIndex
     client: DynamoDBDocumentClient;
     table_name: string;
     index_name: string;
-    averageDocumentLength: number;
+    //the count in tokens of all documents added to the index
+    totalDocumentLength: number;
     documentCount: number;
 
     private constructor(client: DynamoDBDocumentClient, table_name: string, index_name: string, averageDocumentLength: number, documentCount: number)
@@ -37,22 +36,22 @@ export class DynamoDBIndex extends FeatherBMIndex
         this.client = client;
         this.table_name = table_name;
         this.index_name = index_name;
-        this.averageDocumentLength = averageDocumentLength;
+        this.totalDocumentLength = averageDocumentLength;
         this.documentCount = documentCount;
     }
 
     static async from(client: DynamoDBDocumentClient, table_name: string, index_name: string): Promise<DynamoDBIndex>
     {
         const index = new DynamoDBIndex(client, table_name, index_name, 0, 0);
-        const global_entry = await index.getDynamoDBGlobalEntry();
-        index.averageDocumentLength = global_entry.averageDocumentLength;
+        const global_entry = await index.getGlobalEntry();
+        index.totalDocumentLength = global_entry.totalDocumentLength;
         index.documentCount = global_entry.documentCount;
 
         return index;
     }
 
     async getEntry(token: string): Promise<InvertedIndexEntry | undefined> {
-        const entries = await this.getDynamoDBIndexEntry(token);
+        const entries = await this.getIndexEntry(token);
         if(entries.length === 0) return undefined;
 
         //if multiple entries are returned, combine them into a single entry
@@ -74,7 +73,7 @@ export class DynamoDBIndex extends FeatherBMIndex
     }
 
     async getAverageDocumentLength(): Promise<number> {
-        return this.averageDocumentLength;
+        return this.totalDocumentLength / this.documentCount;
     }
 
     async insert(document: IndexedDocument): Promise<void> {
@@ -83,91 +82,62 @@ export class DynamoDBIndex extends FeatherBMIndex
 
     async insert_batch(documents: IndexedDocument[]): Promise<void> {
 
-        const index_entries = buildInvertedEndexEntries(documents);
-        const entry_count = Object.keys(index_entries).length;
-        const db_entries : DynamoDBIndexEntry[] = Object.keys(index_entries).map(token => {
+        const { index , global_stats } = buildInvertedEndexEntries(documents);
+        const entries = Object.keys(index);
+
+        //TODO: split DB entries further into timestamped bins and global IDF entries
+        const db_entries : DynamoDBIndexEntry[] = entries.map(token => {
             return {
                 index_name: this.index_name,
                 sortkey: token,
-                documents: index_entries[token].documents,
-                idf: index_entries[token].idf
+                documents: index[token].documents,
+                idf: index[token].idf
             };
         });
 
         //split into batches of 25
         const MAX_BATCH_SIZE = 25;
-        for(let i = 0; i < entry_count; i += MAX_BATCH_SIZE)
+        for(let i = 0; i < entries.length; i += MAX_BATCH_SIZE)
         {
+            console.log(`Inserting batch ${i} to ${i + MAX_BATCH_SIZE}`);
             const batch = db_entries.slice(i, i + MAX_BATCH_SIZE);
-            const put_requests = batch.map(entry => {
-                return {
-                    PutRequest: {
-                        Item: entry
-                    }
-                };
-            });
-
-            const params = {
-                TableName : this.table_name,
-                RequestItems: {
-                    [this.table_name]: put_requests
-                }
-            };
-
-            try {
-                await this.client.send(new BatchWriteCommand(params));
-            } catch (error) {
-                console.error("Error:", error);
-            }
+            await this.putDynamoDBIndexEntryBatch(batch);
         }
-
-        //TODO: handle collisions inside the documents object for parallel writes
 
         //update the global entry
-        const averageDocumentLength = documents.reduce((acc, doc) => acc + doc.full_text.length, 0) / documents.length;
-        const global_entry = {
-            index_name: this.index_name,
-            sortkey: "global",
-            averageDocumentLength: averageDocumentLength
-        };
-
-        const params = {
-            TableName: this.table_name,
-            Item: global_entry
-        };
-
-        try {
-            await this.client.send(new PutCommand(params));
-        } catch (error) {
-            console.error("Error:", error);
-        }
+        await this.updateGlobalEntry(global_stats);
     }
     
     delete(sortkey: string): Promise<void> {
         throw new Error("Method not implemented.");
     }
 
-    async getDynamoDBGlobalEntry(): Promise<DynamoDBIndexGlobalEntry> {
+    private async putDynamoDBIndexEntryBatch(batch: DynamoDBIndexEntry[]): Promise<void> {
+        const put_requests = batch.map(entry => {
+            return {
+                PutRequest: {
+                    Item: entry
+                }
+            };
+        });
+
         const params = {
-            TableName: this.table_name,
-            Key: {
-                index_name: this.index_name,
-                sortkey: "global"
+            TableName : this.table_name,
+            RequestItems: {
+                [this.table_name]: put_requests
             }
         };
-        
+
         try {
-            const data = await this.client.send(new GetCommand(params));
-            if(data.Item === undefined) return { index_name: this.index_name, sortkey: "global", averageDocumentLength: 0 , documentCount: 0};
-            return data.Item as DynamoDBIndexGlobalEntry;
+            //TODO: handle unprocessed items + retry
+            const result = await this.client.send(new BatchWriteCommand(params));
         } catch (error) {
             console.error("Error:", error);
         }
-
-        return { index_name: this.index_name, sortkey: "global", averageDocumentLength: 0 , documentCount: 0};
     }
 
-    async getDynamoDBIndexEntry(token: string): Promise<DynamoDBIndexEntry[]> {
+
+    private async getIndexEntry(token: string): Promise<DynamoDBIndexEntry[]> {
         const params = {
             TableName: this.table_name,
             KeyConditionExpression: "index_name = :index_name AND begins_with(sortkey, :sortkey)",
@@ -186,6 +156,46 @@ export class DynamoDBIndex extends FeatherBMIndex
         }
 
         return [];
+    }
+
+    private async getGlobalEntry(): Promise<DynamoDBIndexGlobalEntry> {
+        const params = {
+            TableName: this.table_name,
+            Key: {
+                index_name: this.index_name,
+                sortkey: "global"
+            }
+        };
+        
+        try {
+            const data = await this.client.send(new GetCommand(params));
+            if(data.Item === undefined) return { index_name: this.index_name, sortkey: "global", totalDocumentLength: 0 , documentCount: 0};
+            return data.Item as DynamoDBIndexGlobalEntry;
+        } catch (error) {
+            console.error("Error:", error);
+        }
+
+        return { index_name: this.index_name, sortkey: "global", totalDocumentLength: 0 , documentCount: 0};
+    }
+
+    private async updateGlobalEntry(stats: InvertedIndexGlobalStatistics): Promise<void> {
+        const global_entry = {
+            index_name: this.index_name,
+            sortkey: "global",
+            totalDocumentLength: stats.totalDocumentLength,
+            documentCount: stats.documentCount,
+        };
+
+        const params = {
+            TableName: this.table_name,
+            Item: global_entry
+        };
+
+        try {
+            await this.client.send(new PutCommand(params));
+        } catch (error) {
+            console.error("Error:", error);
+        }
     }
     
 }

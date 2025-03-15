@@ -15,7 +15,7 @@ export type InverseDocumentValue = { id: string, tf: number, len: number }
 
 //we also need a global statistics object to keep up with the averageDocumentLength and the document_token_counts
 export interface InvertedIndexGlobalStatistics {
-    averageDocumentLength: number,
+    totalDocumentLength: number,
     documentCount: number
 }
 
@@ -40,6 +40,7 @@ export interface IndexedDocument
     full_text: string 
 }
 
+
 function getInverseDocumentValues(document: IndexedDocument) : { [token: string] : InverseDocumentValue }
 {
     const words = expandQueryToTokens(document.full_text);
@@ -61,7 +62,7 @@ function getInverseDocumentValues(document: IndexedDocument) : { [token: string]
     return values;
 }
 
-export function buildInvertedEndexEntries(documents: IndexedDocument[]) : InvertedIndex
+export function buildInvertedEndexEntries(documents: IndexedDocument[]) : { global_stats: InvertedIndexGlobalStatistics, index: InvertedIndex }
 {
     const invertedIndex : InvertedIndex = {};
 
@@ -77,7 +78,13 @@ export function buildInvertedEndexEntries(documents: IndexedDocument[]) : Invert
         }
     }
 
-    return invertedIndex;
+    return {
+        global_stats: {
+            totalDocumentLength: documents.reduce((acc, doc) => acc + expandQueryToTokens(doc.full_text).length, 0),
+            documentCount: documents.length
+        },
+        index: invertedIndex
+    };
 }
 
 /*

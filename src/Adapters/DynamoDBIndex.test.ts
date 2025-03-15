@@ -51,8 +51,16 @@ describe('DynamoDB', () => {
         const client = DynamoDBDocumentClient.from(local_dynamo_client);
         const index = await DynamoDBIndex.from(client, "test_table", "test_index");
 
-        const scores = await index.query("franchise tax");
+        const scores = await index.query("franchise");
 
-        console.log(scores);
+        const top_score = scores[0];
+
+        const docs = test_docs as IndexedDocument[];
+
+        const top_doc = docs.find(doc => doc.sortkey === top_score.id);
+
+        console.log("Top Score: ", top_score);
+        console.log("Top Document: ", top_doc);
+
     }, 100000);
 });
