@@ -1,4 +1,4 @@
-import test_docs from "./test_data/arkansas_2023.json";
+import test_docs from "../test_data/arkansas_2023.json";
 import { IndexedDocument } from "./InvertedIndex";
 import { buildInvertedIndex } from "./InvertedIndex";
 import { computeBM25ScoresConcurrent } from "./Search";

@@ -1,4 +1,4 @@
-import { expandQueryToTokens } from "./NLPUtils"
+import { expandQueryToTokens } from "./NLPUtils";
 
 export type InvertedIndexToken = string;
 export type InvertedIndexTimeStamp = string;
@@ -86,62 +86,3 @@ export function buildInvertedEndexEntries(documents: IndexedDocument[]) : { glob
         index: invertedIndex
     };
 }
-
-/*
-//build the inverted index from documents passed in and return an DocumentIndex object to be saved to S3
-export function buildInvertedIndexLegacy(documents: IndexedDocument[]) : {
-    invertedIndex: InvertedIndex,
-    document_token_counts: { [ sortkey: string ]: number },
-    averageDocumentLength: number,
-    documentCount: number
-}
-{
-    const invertedIndex : InvertedIndex = {};
-    let averageDocumentLength : number = 0;
-
-    const document_token_counts : { [ sortkey: string ]: number } = {};
-
-    for(const document of documents)
-    {
-        const words = expandQueryToTokens(document.full_text);
-        const token_count = words.length;
-        document_token_counts[document.sortkey] = token_count;
-        const uniqueWords = new Set<string>();
-
-        for(const word of words)
-        {
-            if(!invertedIndex.hasOwnProperty(word)) invertedIndex[word] = {
-                documents: { [ document.sortkey ]: { termFrequency: 0, documentLength: token_count } },
-                inverseDocumentFrequency: 0 
-            }
-
-            if(!invertedIndex[word].hasOwnProperty('documents')) {
-                console.log("word not found in inverted index: ", JSON.stringify(invertedIndex[word])); 
-                invertedIndex[word].documents = {}; 
-            }
-
-            if(!invertedIndex[word].documents.hasOwnProperty(document.sortkey)) invertedIndex[word].documents[document.sortkey] = { termFrequency: 0, documentLength: 0 };
-
-            invertedIndex[word].documents[document.sortkey] = {
-                termFrequency: invertedIndex[word].documents[document.sortkey].termFrequency + 1,
-                documentLength: token_count
-            }
-
-            if (!uniqueWords.has(word)) {
-                invertedIndex[word].inverseDocumentFrequency++;
-                uniqueWords.add(word);
-            }
-        }
-        averageDocumentLength += words.length;
-    }
-
-    averageDocumentLength = averageDocumentLength / documents.length;
-
-    return { 
-        invertedIndex, 
-        document_token_counts, 
-        averageDocumentLength, 
-        documentCount: documents.length 
-    };
-
-}*/

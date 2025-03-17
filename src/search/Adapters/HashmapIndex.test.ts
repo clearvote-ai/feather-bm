@@ -1,6 +1,6 @@
 import { IndexedDocument } from "../BM25/InvertedIndex";
 import { HashMapIndex } from "./HashmapIndex";
-import test_docs from "../BM25/test_data/arkansas_2023.json";
+import test_docs from "../test_data/arkansas_2023.json";
 
 
 

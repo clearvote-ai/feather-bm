@@ -1,4 +1,4 @@
-import { InvertedIndexEntry, IndexedDocument, buildInvertedEndexEntries, InvertedIndex } from "../BM25/InvertedIndex";
+import { InvertedIndexEntry, IndexedDocument, buildInvertedEndexEntries, InvertedIndex, InvertedIndexGlobalStatistics } from "../BM25/InvertedIndex";
 import { FeatherBMIndex } from "./Adapter";
 
 
@@ -6,6 +6,7 @@ import { FeatherBMIndex } from "./Adapter";
 
 export class HashMapIndex extends FeatherBMIndex
 {
+    
 
     index: InvertedIndex = {};
     totalDocumentLength: number = 0;
@@ -28,13 +29,13 @@ export class HashMapIndex extends FeatherBMIndex
     getEntry(token: string): Promise<InvertedIndexEntry | undefined> {
         return Promise.resolve(this.index[token]);
     }
-    getAverageDocumentLength(): Promise<number> {
-        return Promise.resolve(this.totalDocumentLength / this.documentCount);
-    }
-    insert_batch(documents: IndexedDocument[]): Promise<void> {
-        //TODO: check if the document id already exists in the index
-        const { global_stats, index } = buildInvertedEndexEntries(documents);
 
+    async getAverageDocumentLength(): Promise<number> {
+        return this.totalDocumentLength / this.documentCount
+    }
+
+    async insert_batch_internal(index: InvertedIndex, global_stats: InvertedIndexGlobalStatistics): Promise<void> {
+        
         //combine the new index with the existing index
         //for each token in the index
         for(const token in index)
@@ -52,10 +53,23 @@ export class HashMapIndex extends FeatherBMIndex
         }
         this.totalDocumentLength += global_stats.totalDocumentLength;
         this.documentCount += global_stats.documentCount;
-        return Promise.resolve();
     }
-    delete(sortkey: string): Promise<void> {
-        throw new Error("Method not implemented.");
+    
+    async delete_batch_internal(minus_index: InvertedIndex, minus_global_stats: InvertedIndexGlobalStatistics): Promise<void> {
+        //remove from this.index all the entries in minus_index
+        for(const token in minus_index)
+        {
+            if(this.index[token] === undefined) continue;
+
+            const minus_docs = minus_index[token].documents;
+            const docs = this.index[token].documents;
+
+            //filter in document id rather than idf or len
+            this.index[token].documents = docs.filter(doc => !minus_docs.some(minus_doc => minus_doc.id === doc.id));
+        }
+
+        this.totalDocumentLength -= minus_global_stats.totalDocumentLength;
+        this.documentCount -= minus_global_stats.documentCount;
     }
 
 
