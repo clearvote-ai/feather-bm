@@ -7,8 +7,8 @@ export abstract class FeatherBMIndex
     abstract getAverageDocumentLength() : Promise<number>;
 
     async query(query: string) : Promise<BM25Score[]> { return await computeBM25ScoresConcurrent(query, this); }
-    abstract insert(document: IndexedDocument) : Promise<void>;
+    async insert(document: IndexedDocument) : Promise<void> { await this.insert_batch([document]); }
     abstract insert_batch(documents: IndexedDocument[]) : Promise<void>;
-    abstract delete(sortkey: string) : Promise<void>;
+    //abstract delete(sortkey: string) : Promise<void>;
 
 }

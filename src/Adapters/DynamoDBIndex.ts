@@ -55,7 +55,7 @@ export class DynamoDBIndex extends FeatherBMIndex
         if(entries.length === 0) return undefined;
 
         //if multiple entries are returned, combine them into a single entry
-        const combined_entry = entries.reduce((acc, entry) => {
+        /*const combined_entry = entries.reduce((acc, entry) => {
             if(acc.documents === undefined) acc.documents = [];
             for(const doc_id in entry.documents)
             {
@@ -64,20 +64,19 @@ export class DynamoDBIndex extends FeatherBMIndex
             }
 
             return acc;
-        });
+        });*/
 
-        //IDF is only on the first entry
-        combined_entry.idf = entries[0].idf;
+        const combined_entry = entries[0];
+        return {
+            documents: combined_entry.documents,
+            idf: combined_entry.idf
+        };
 
-        return combined_entry;
+        return ;
     }
 
     async getAverageDocumentLength(): Promise<number> {
         return this.totalDocumentLength / this.documentCount;
-    }
-
-    async insert(document: IndexedDocument): Promise<void> {
-        this.insert_batch([document]);
     }
 
     async insert_batch(documents: IndexedDocument[]): Promise<void> {
@@ -106,10 +105,6 @@ export class DynamoDBIndex extends FeatherBMIndex
 
         //update the global entry
         await this.updateGlobalEntry(global_stats);
-    }
-    
-    delete(sortkey: string): Promise<void> {
-        throw new Error("Method not implemented.");
     }
 
     private async putDynamoDBIndexEntryBatch(batch: DynamoDBIndexEntry[]): Promise<void> {

@@ -19,15 +19,16 @@ export async function computeBM25ScoresConcurrent<A extends FeatherBMIndex>(quer
     .withConcurrency(MAX_CONCURRENT_QUERIES)
     .for(query_tokens)
     .handleError(async (error, token, pool) => {
-        console.error("Error processing token index lookup", error);
+        console.error("Error processing token index lookup", { error });
     })
     .process(async (token, index, pool) => {
         
         const entry = await document_index.getEntry(token);
 
         if(entry === undefined || entry === null) {
-            console.log("Token not found in inverted index: ", token);
-            return {};
+            // Token not found in inverted index, handle appropriately in production
+            // e.g., use a logging library instead of console.log
+            return [];
         }
 
         const scores : BM25Score[] = entry.documents.map(doc => {
@@ -44,25 +45,15 @@ export async function computeBM25ScoresConcurrent<A extends FeatherBMIndex>(quer
     if(!results) throw new Error("No scores found for query");
 
     
-    var scores : BM25Score[] = aggregatePerTokenScores(results as [BM25Score[]])
-                               .sort((a, b) => b.score - a.score);
-
-    return scores;
-}
-
-//aggregate scores across all tokens 
-//BEFORE: { "token_1" : [ { doc_id: "1234", score: 0.5 }, { doc_id: "4567", score: 0.6 } ], "token_2" : [ { doc_id: "1234", score: 0.5 }, { doc_id: "4567", score: 0.6 } ] }
-//AFTER: [ { doc_id: "1234", score: 1.0 }, { doc_id: "4567", score: 1.2 } ]
-function aggregatePerTokenScores(scores: [BM25Score[]]) : BM25Score[]
-{
-    return scores.reduce((acc, val) => {
-        val.forEach(score => {
-            const existing_score = acc.find(s => s.id === score.id);
-            if(existing_score) existing_score.score += score.score;
-            else acc.push(score);
-        });
+    const flattenedResults = results.flat();
+    let scores : BM25Score[] = flattenedResults.reduce((acc, score) => {
+        const existing_score = acc.find(s => s.id === score.id);
+        if(existing_score) existing_score.score += score.score;
+        else acc.push(score);
         return acc;
     }, [] as BM25Score[]);
+
+    return scores.sort((a, b) => b.score - a.score);
 }
 
 //compute the BM25 score for a single TOKEN_X_DOCUMENT pair

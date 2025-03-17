@@ -37,9 +37,6 @@ describe('DynamoDB', () => {
     test('insert', async () => {
         const docs = test_docs as IndexedDocument[];
 
-        //pick a random document from the first 1000
-        const test_doc = docs[Math.floor(Math.random() * 1000)];
-
         const client = DynamoDBDocumentClient.from(local_dynamo_client);
         const index = await DynamoDBIndex.from(client, "test_table", "test_index");
 
@@ -51,7 +48,7 @@ describe('DynamoDB', () => {
         const client = DynamoDBDocumentClient.from(local_dynamo_client);
         const index = await DynamoDBIndex.from(client, "test_table", "test_index");
 
-        const scores = await index.query("franchise");
+        const scores = await index.query("franchise tax");
 
         const top_score = scores[0];
 
