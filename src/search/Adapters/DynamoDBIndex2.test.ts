@@ -1,6 +1,5 @@
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { IndexedDocument } from "../BM25/InvertedIndex";
-import { computeBM25ScoresConcurrent } from "../BM25/Search";
 import test_docs from "../test_data/arkansas_2023.json";
 import { DynamoDBIndex } from "./DynamoDBIndex";
 import { CreateTableCommand, DynamoDBClient } from "@aws-sdk/client-dynamodb";

@@ -29,4 +29,22 @@ describe('HashmapIndex', () => {
         console.log("Top Document: ", top_doc);
 
     }, 100000);
+
+    test('delete', async () => {
+        const index = HashMapIndex.from(test_docs as IndexedDocument[]);
+
+        const scores = await index.query("franchise tax");
+
+        const full_docs = test_docs as IndexedDocument[];
+
+        const scored_docs = scores.map(score => full_docs.find(doc => doc.sortkey === score.id));
+
+        await index.delete_batch(scored_docs as IndexedDocument[]);
+
+        const new_scores = await index.query("franchise tax");
+
+        expect(new_scores.length).toBe(0);
+
+        
+    }, 100000);
 });

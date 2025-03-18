@@ -1,5 +1,5 @@
 import { BatchWriteCommand, DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
-import { buildInvertedEndexEntries, IndexedDocument, InverseDocumentValue, InvertedIndex, InvertedIndexEntry, InvertedIndexGlobalStatistics } from "../BM25/InvertedIndex";
+import { InverseDocumentValue, InvertedIndex, InvertedIndexEntry, InvertedIndexGlobalStatistics } from "../BM25/InvertedIndex";
 import { FeatherBMIndex } from "./Adapter";
 
 

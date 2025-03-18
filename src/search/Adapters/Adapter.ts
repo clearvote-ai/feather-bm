@@ -1,12 +1,12 @@
 import { BM25Score, buildInvertedEndexEntries, IndexedDocument, InvertedIndex, InvertedIndexEntry, InvertedIndexGlobalStatistics } from "../BM25/InvertedIndex";
-import { computeBM25ScoresConcurrent } from "../BM25/Search";
+import { queryConcurrent } from "../BM25/query";
 
 export abstract class FeatherBMIndex
 {
     abstract getEntry(token: string) : Promise<InvertedIndexEntry | undefined>;
     abstract getAverageDocumentLength() : Promise<number>;
 
-    async query(query: string) : Promise<BM25Score[]> { return await computeBM25ScoresConcurrent(query, this); }
+    async query(query: string) : Promise<BM25Score[]> { return await queryConcurrent(query, this); }
     async insert(document: IndexedDocument) : Promise<void> { await this.insert_batch([document]); }
     async delete(document: IndexedDocument) : Promise<void> { await this.delete_batch([document]); }
 

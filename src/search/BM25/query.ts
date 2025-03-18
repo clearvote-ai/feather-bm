@@ -7,7 +7,7 @@ import { FeatherBMIndex } from "../Adapters/Adapter";
 const MAX_CONCURRENT_QUERIES = 4;
 
 //compute the BM25 scores for every relevant document in our inverted index for a given query
-export async function computeBM25ScoresConcurrent<A extends FeatherBMIndex>(query: string, document_index: A) : Promise<BM25Score[]>
+export async function queryConcurrent<A extends FeatherBMIndex>(query: string, document_index: A) : Promise<BM25Score[]>
 {
     const query_tokens = expandQueryToTokens(query);
 
