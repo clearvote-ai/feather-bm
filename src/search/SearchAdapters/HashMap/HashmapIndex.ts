@@ -1,5 +1,5 @@
-import { InvertedIndexEntry, IndexedDocument, buildInvertedEndexEntries, InvertedIndex, InvertedIndexGlobalStatistics } from "../BM25/InvertedIndex";
-import { FeatherBMIndex } from "./Adapter";
+import { InvertedIndexEntry, IndexedDocument, buildInvertedEndexEntries, InvertedIndex, InvertedIndexGlobalStatistics } from "../../BM25/InvertedIndex";
+import { FeatherBMIndex } from "../FeatherBMIndex";
 
 
 
