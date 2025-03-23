@@ -1,7 +1,7 @@
 import { DynamoDBDocumentClient, GetCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { GlobalStatisticsEntry, TermFrequencyEntry, UUID_000 } from "../../../../FeatherTypes";
 
-export namespace DynamoDBHelpers {
+export namespace DynamoDBRead {
     export async function getInverseDocumentFrequencyEntry(client: DynamoDBDocumentClient, table_name: string, indexName: string, token: string): Promise<number> {
             
         const params = {
@@ -28,16 +28,18 @@ export namespace DynamoDBHelpers {
             TableName: table_name,
             KeyConditionExpression: "pk = :pk",
             ExpressionAttributeValues: {
-                ":pk": `${indexName}#${token}`
+                ":pk": `${indexName}#${token}`,
             },
         };
-        
-        //TODO: filter out entries with id = UUID_000 (global stats entry | idf entry)
 
         try {
             const data = await client.send(new QueryCommand(params));
             if(data.Items === undefined) return [];
-            return data.Items as TermFrequencyEntry[];
+
+            // Filter out the UUID_000 entries (which are not term frequency entries)
+            const items = data.Items.filter(item => item.idf === undefined);
+            if (items.length === 0) return [];
+            return items as TermFrequencyEntry[];
         } catch (error) {
             console.error("Error getting index entry:", error);
         }
@@ -62,6 +64,6 @@ export namespace DynamoDBHelpers {
             console.error("Error reading global stats entry:", error);
         }
 
-        throw new Error("Failed to retrieve global stats entry");
+        return { pk: `${indexName}#global_stats`, id: UUID_000, totalDocumentLength: 0, documentCount: 0}; // return a default value if not found
     }
 }

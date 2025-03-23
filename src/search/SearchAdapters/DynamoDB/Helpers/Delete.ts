@@ -1,6 +1,6 @@
 import { BatchWriteCommand, DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
-import { DynamoDBIDFEntry, DynamoDBIndexEntry } from "../DynamoDBIndex";
 
+/*
 export async function deleteDynamoDBEntryBatch(client: DynamoDBDocumentClient, table_name: string, entries: DynamoDBIndexEntry[]): Promise<void> {
    const deleteRequests = entries.map(entry => ({
       DeleteRequest: {
@@ -57,4 +57,4 @@ export async function deleteDynamoDBIDFBatch(client: DynamoDBDocumentClient, tab
       console.error("Error deleting entries from DynamoDB", { error });
       throw error;
    }
-}
+}*/

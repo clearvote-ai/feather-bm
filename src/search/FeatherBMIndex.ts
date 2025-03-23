@@ -1,5 +1,5 @@
-import { GlobalStatisticsEntry, IndexedDocument, IndexEntry, InverseDocumentFrequencyEntry, TermFrequencyEntry, UUID_000 } from "../../FeatherTypes";
-import { BM25Score } from "../../FeatherTypes";
+import { GlobalStatisticsEntry, IndexedDocument, IndexEntry, InverseDocumentFrequencyEntry, TermFrequencyEntry, UUID_000 } from "../FeatherTypes";
+import { BM25Score } from "../FeatherTypes";
 import { expandQueryToTokens } from "./NLPUtils";
 import PromisePool from "@supercharge/promise-pool";
 import { pack_tf_binary, unpack_tf_binary } from "./BinaryUtils";
@@ -22,8 +22,11 @@ export abstract class FeatherBMIndex
 
     //Your adapter must implement these methods to interact with your data store
     abstract getEntries(token: string) : Promise<{ idf_entry: InverseDocumentFrequencyEntry, tf_entries: TermFrequencyEntry[] }>;
-    abstract insert_internal(tf_entries: TermFrequencyEntry[], idf_entries:InverseDocumentFrequencyEntry[], global_stats: GlobalStatisticsEntry) : Promise<void>;
-    abstract delete_internal(tf_entries: TermFrequencyEntry[], idf_entries: InverseDocumentFrequencyEntry[], global_stats: GlobalStatisticsEntry) : Promise<void>;
+    
+    abstract update_global_entry_internal(global_stats: GlobalStatisticsEntry) : Promise<void>;
+    abstract insert_internal(tf_entries: TermFrequencyEntry[], idf_entries:InverseDocumentFrequencyEntry[]) : Promise<void>;
+    abstract delete_internal(tf_entries: TermFrequencyEntry[], idf_entries: InverseDocumentFrequencyEntry[]) : Promise<void>;
+    
 
     constructor(indexName: string, totalDocumentLength: number, documentCount: number, K1: number = 1.2, B: number = 0.75)
     {
@@ -38,6 +41,24 @@ export abstract class FeatherBMIndex
         return this.totalDocumentLength / this.documentCount;
     }
 
+    async updateGlobalEntry(global_stats: GlobalStatisticsEntry, insert: boolean) : Promise<void> {
+        
+        const new_document_count = insert ? this.documentCount + global_stats.documentCount : this.documentCount - global_stats.documentCount;
+        const new_total_document_length = insert ? this.totalDocumentLength + global_stats.totalDocumentLength : this.totalDocumentLength - global_stats.totalDocumentLength;
+        if(new_document_count <= 0) throw new Error("Document count cannot be less than 0");
+        if(new_total_document_length <= 0) throw new Error("Total document length cannot be less than 0");
+        const new_global_stats_entry : GlobalStatisticsEntry = {
+            pk: `${this.indexName}#global_stats`, //partition key
+            id: UUID_000, //sort key placeholder for global stats
+            totalDocumentLength: new_total_document_length,
+            documentCount: new_document_count
+        };
+
+        //Adapter is responsible for updating the global stats entry in the data store
+        await this.update_global_entry_internal(new_global_stats_entry);
+    }
+        
+
     //NOTE: you should ensure the documents are NOT already in the index before calling insert
     //calling insert here will overwrite any existing documents with the same id but it might result in undefined index behavior
     //if you inserted 2 different versions of the same document with the same UUID then the index will keep both versions which you may not want
@@ -47,11 +68,14 @@ export abstract class FeatherBMIndex
         const { global_stats_entry, idf_entries, tf_entries } = this.computeInvertedEndexEntries(documents);
 
         //Adapter is responsible for inserting the entries into the data store
-        await this.insert_internal(tf_entries, idf_entries, global_stats_entry);
+        await this.insert_internal(tf_entries, idf_entries);
 
         //update the totalDocumentLength and documentCount
         this.totalDocumentLength += global_stats_entry.totalDocumentLength;
         this.documentCount += global_stats_entry.documentCount;
+
+        //update the global stats entry in the data store
+        await this.updateGlobalEntry(global_stats_entry, true); //true = insert
     }
 
     //NOTE: you should ensure the documents are already in the index before calling delete
@@ -61,11 +85,24 @@ export abstract class FeatherBMIndex
         const { global_stats_entry, idf_entries, tf_entries } = this.computeInvertedEndexEntries(documents);
 
         //Adapter is responsible for deleting the entries from the data store
-        await this.delete_internal(tf_entries, idf_entries, global_stats_entry);
+        await this.delete_internal(tf_entries, idf_entries);
 
         //update the totalDocumentLength and documentCount
         this.totalDocumentLength -= global_stats_entry.totalDocumentLength;
         this.documentCount -= global_stats_entry.documentCount;
+
+        //update the global stats entry to maintain accuracy of BM25 accross the index
+        if(this.documentCount <= 0) throw new Error("Document count cannot be less than 0");
+        if(this.totalDocumentLength <= 0) throw new Error("Total document length cannot be less than 0");
+        const new_global_stats_entry : GlobalStatisticsEntry = {
+            pk: `${this.indexName}#global_stats`, //partition key
+            id: UUID_000, //sort key placeholder for global stats
+            totalDocumentLength: this.totalDocumentLength,
+            documentCount: this.documentCount
+        };
+
+        //update the global stats entry in the data store
+        await this.updateGlobalEntry(new_global_stats_entry, false); //false = delete
     }
 
     //compute the BM25 scores for every relevant document in our inverted index for a given query CONCURRENTLY

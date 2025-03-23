@@ -1,72 +1,49 @@
 import { BatchWriteCommand, DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
-import { DynamoDBIDFEntry, DynamoDBIndexEntry } from "../DynamoDBIndex";
-import { InvertedIndexGlobalStatistics } from "../../../BM25/InvertedIndex";
+import { GlobalStatisticsEntry, InverseDocumentFrequencyEntry, TermFrequencyEntry } from "../../../../FeatherTypes";
+import { DYNAMO_DB_MAX_BATCH_SIZE } from "../DynamoDBIndex";
 
-export async function putDynamoDBIndexEntryBatch(client : DynamoDBDocumentClient, table_name: string, batch: DynamoDBIndexEntry[]): Promise<void> {
-    const put_requests = batch.map(entry => {
-        return {
-            PutRequest: {
-                Item: entry
+export namespace DynamoDBCreate {
+    export async function putDynamoDBEntryBatch(client : DynamoDBDocumentClient, table_name: string, requests: (InverseDocumentFrequencyEntry | TermFrequencyEntry)[]): Promise<void> {
+
+        for (let i = 0; i < requests.length; i += DYNAMO_DB_MAX_BATCH_SIZE) 
+        {
+            console.log(`Processing batch from index ${i} of ${requests.length}`);
+            const batch = requests.slice(i, i + DYNAMO_DB_MAX_BATCH_SIZE);
+            const put_requests = batch.map(entry => {
+                return {
+                    PutRequest: {
+                        Item: entry
+                    }
+                };
+            });
+
+            const params = {
+                TableName : table_name,
+                RequestItems: {
+                    [table_name]: put_requests
+                }
+            };
+
+            try {
+                //TODO: handle unprocessed items + retry
+                const result = await client.send(new BatchWriteCommand(params));
+            } catch (error) {
+                console.error("Error updating idf entry:", error);
             }
-        };
-    });
-
-    const params = {
-        TableName : table_name,
-        RequestItems: {
-            [table_name]: put_requests
         }
-    };
-
-    try {
-        //TODO: handle unprocessed items + retry
-        const result = await client.send(new BatchWriteCommand(params));
-    } catch (error) {
-        console.error("Error updating index entry:", error);
     }
-}
 
-export async function putDynamoDBIDFEntryBatch(client : DynamoDBDocumentClient, table_name: string, batch: DynamoDBIDFEntry[]): Promise<void> {
-    const put_requests = batch.map(entry => {
-        return {
-            PutRequest: {
-                Item: entry
-            }
+    export async function updateGlobalStatsEntry(client: DynamoDBDocumentClient, table_name: string, global_entry: GlobalStatisticsEntry): Promise<void> 
+    {   
+        const params = {
+            TableName: table_name,
+            Item: global_entry
         };
-    });
 
-    const params = {
-        TableName : table_name,
-        RequestItems: {
-            [table_name]: put_requests
+        try {
+            await client.send(new PutCommand(params));
+        } catch (error) {
+            console.error("Error updating global stats entry:", error);
         }
-    };
-
-    try {
-        //TODO: handle unprocessed items + retry
-        const result = await client.send(new BatchWriteCommand(params));
-    } catch (error) {
-        console.error("Error updating idf entry:", error);
-    }
-}
-
-export async function updateGlobalStatsEntry(client: DynamoDBDocumentClient, table_name: string, indexName: string, stats: InvertedIndexGlobalStatistics): Promise<void> {
-    const placeholder_0_id = new Uint8Array(16);
-    const global_entry = {
-        pk: `${indexName}#global_stats`,
-        id: placeholder_0_id,
-        totalDocumentLength: stats.totalDocumentLength,
-        documentCount: stats.documentCount,
-    };
-
-    const params = {
-        TableName: table_name,
-        Item: global_entry
-    };
-
-    try {
-        await client.send(new PutCommand(params));
-    } catch (error) {
-        console.error("Error updating global stats entry:", error);
     }
 }

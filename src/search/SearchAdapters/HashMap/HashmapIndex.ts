@@ -1,5 +1,5 @@
 import { IndexedDocument, InvertedIndex, IndexEntry, GlobalStatisticsEntry, InverseDocumentFrequencyEntry, TermFrequencyEntry, IndexPartitionKey } from "../../../FeatherTypes";
-import { FeatherBMIndex } from "../FeatherBMIndex";
+import { FeatherBMIndex } from "../../FeatherBMIndex";
 
 
 export class HashMapIndex extends FeatherBMIndex

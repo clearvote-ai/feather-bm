@@ -1,5 +1,5 @@
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
-import {getTestDocs} from "../../../search/test_data/TestData";
+import {getTestDocs} from "../../../test_data/TestData";
 import { DynamoDBIndex } from "./DynamoDBIndex";
 import { CreateTableCommand, DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { IndexedDocument } from "../../../FeatherTypes";
@@ -52,11 +52,13 @@ describe('DynamoDB', () => {
 
         const top_score = scores[0];
 
+        console.log("Top Score: ", top_score);
+
         const docs = getTestDocs();
 
-        const top_doc = docs.find(doc => doc.id === top_score.id);
+        const top_doc = docs.find(doc => doc.uuidv7 === top_score.id);
 
-        console.log("Top Score: ", top_score);
+        
         console.log("Top Document: ", top_doc);
 
     }, 100000);
@@ -69,7 +71,7 @@ describe('DynamoDB', () => {
 
         const full_docs = getTestDocs();
 
-        const scored_docs = scores.map(score => full_docs.find(doc => doc.id === score.id));
+        const scored_docs = scores.map(score => full_docs.find(doc => doc.uuidv7 === score.id));
 
         await index.delete(scored_docs as IndexedDocument[]);
 
