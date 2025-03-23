@@ -38,7 +38,14 @@ describe('BinaryUtils', () => {
 
         expect(tf).toBe(100);
         expect(len).toBe(200);
-        expect(timestamp).toBe(current_time_in_millis & 0xFFFFFFFFFFFF); // mask to get the last 48 bits
+        const expectedTimestamp = new Uint8Array(6);
+        expectedTimestamp[0] = (current_time_in_millis >> 0) & 0xFF;
+        expectedTimestamp[1] = (current_time_in_millis >> 8) & 0xFF;
+        expectedTimestamp[2] = (current_time_in_millis >> 16) & 0xFF;
+        expectedTimestamp[3] = (current_time_in_millis >> 24) & 0xFF;
+        expectedTimestamp[4] = (current_time_in_millis >> 32) & 0xFF;
+        expectedTimestamp[5] = (current_time_in_millis >> 40) & 0xFF;
+        expect(timestamp).toEqual(expectedTimestamp); // compare as Uint8Array
     });
 
     test('pack_tf_binary with large values', () => {
@@ -61,21 +68,23 @@ describe('BinaryUtils', () => {
     test('unpack_tf_binary with large values', () => {
         const current_time_in_millis = Date.now();
         const timestamp_value = (current_time_in_millis & 0xFFFFFFFFFFFF) >> 8; // shift to fit in 6 bytes
-        const timestamp_bytes = new Uint8Array(6).fill(1); // fill with dummy data
+        const timestamp_bytes = new Uint8Array(6); // fill with dummy data
         timestamp_bytes[0] = (timestamp_value & 0xFF);
         timestamp_bytes[1] = (timestamp_value >> 8) & 0xFF;
         timestamp_bytes[2] = (timestamp_value >> 16) & 0xFF;
         timestamp_bytes[3] = (timestamp_value >> 24) & 0xFF;
         timestamp_bytes[4] = (timestamp_value >> 32) & 0xFF;
         timestamp_bytes[5] = (timestamp_value >> 40) & 0xFF;
-        const tf_binary = pack_tf_binary(70000, 5000000000, timestamp_bytes);
-        // Unpack the binary data
 
+        //pack the binary data with large values
+        const tf_binary = pack_tf_binary(70000, 5000000000, timestamp_bytes);
+        
+        // Unpack the binary data
         const { tf, len, timestamp } = unpack_tf_binary(tf_binary);
 
         expect(tf).toBe(65535);
         expect(len).toBe(4294967295);
-        expect(timestamp).toBe(current_time_in_millis & 0xFFFFFFFFFFFF); // mask to get the last 48 bits
+        expect(timestamp).toStrictEqual(timestamp_bytes); // compare as Uint8Array
     });
 
     test('pack_tf_binary with zero values', () => {
@@ -106,7 +115,8 @@ describe('BinaryUtils', () => {
 
         expect(tf).toBe(0);
         expect(len).toBe(0);
-        expect(timestamp).toBe(0); // since we packed it with all zeros
+        const emptyTimestamp = new Uint8Array(6).fill(0);
+        expect(timestamp).toStrictEqual(emptyTimestamp); // compare as Uint8Array
     });
 
 });

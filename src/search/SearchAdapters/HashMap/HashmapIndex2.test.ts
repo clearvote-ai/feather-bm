@@ -7,7 +7,7 @@ describe('HashmapIndex', () => {
     test('insert', async () => {
         const docs = getTestDocs();
 
-        const index = new HashMapIndex([docs[0]], "test_index", "FeatherIndex");
+        const index = new HashMapIndex("test_index", 0, 0);
 
         await index.insert(docs);
     }, 100000);
@@ -15,7 +15,7 @@ describe('HashmapIndex', () => {
 
     test('query', async () => {
         const docs = getTestDocs();
-        const index = new HashMapIndex(docs, "test_index", "FeatherIndex");
+        const index = await HashMapIndex.from(docs, "test_index");
 
         const scores = await index.query("franchise tax");
 
@@ -30,7 +30,7 @@ describe('HashmapIndex', () => {
 
     test('delete', async () => {
         const docs = getTestDocs();
-        const index = new HashMapIndex(docs, "test_index", "FeatherIndex");
+        const index = await HashMapIndex.from(docs, "test_index");
 
         const scores = await index.query("franchise tax");
 

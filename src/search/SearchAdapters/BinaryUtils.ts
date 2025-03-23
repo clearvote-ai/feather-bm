@@ -27,28 +27,15 @@ export function pack_tf_binary(tf: number, len: number, timestamp: Uint8Array) :
     return tf_binary;
 }
 
-export function unpack_tf_binary(tf_binary: Uint8Array) : { tf: number, len: number, timestamp: number } 
+export function unpack_tf_binary(data: Uint8Array) : { tf: number, len: number, timestamp: Uint8Array }
 {
-    //first 2 bytes are the term frequency as a uint 16
-    const tf = (tf_binary[0] | (tf_binary[1] << 8)) & 0xFFFF; //mask to get the last 16 bits
-
-    //next 4 bytes are the document length as a uint 32
-    const len_bytes = new Uint8Array(4);
-    len_bytes.set(tf_binary.slice(2, 6));
-    const len = (len_bytes[0] | (len_bytes[1] << 8) | (len_bytes[2] << 16) | (len_bytes[3] << 24)); //mask to get the last 32 bits
-
-    //next 6 bytes are the timestamp
-    //copy first 6 bytes of the uuid to the tf binary
-    const timestamp = (tf_binary[6] | (tf_binary[7] << 8) | (tf_binary[8] << 16) | (tf_binary[9] << 24) | (tf_binary[10] << 32) | (tf_binary[11] << 40)) & 0xFFFFFFFFFFFF; //mask to get the last 48 bits
-    
+    if (data.length !== 12) {
+        throw new Error("Invalid data length, expected 12 bytes");
+    }
+    const tf = data[0] | (data[1] << 8);
+    const len = (data[2] | (data[3] << 8) | (data[4] << 16) | (data[5] << 24)) >>> 0; // ensure unsigned interpretation
+    const timestamp = data.slice(6);
     return { tf, len, timestamp };
-}
-
-export function unpack_uuid_binary(uuid_binary: Uint8Array) : string 
-{
-    //convert the binary uuid to a string
-    const uuid = stringify(uuid_binary);
-    return uuid;
 }
 
 export function pack_uuid_binary(uuid: string) : Uint8Array

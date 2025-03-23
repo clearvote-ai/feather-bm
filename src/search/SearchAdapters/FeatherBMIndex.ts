@@ -2,8 +2,8 @@ import { GlobalStatisticsEntry, IndexedDocument, IndexEntry, InverseDocumentFreq
 import { BM25Score } from "../../FeatherTypes";
 import { expandQueryToTokens } from "./NLPUtils";
 import PromisePool from "@supercharge/promise-pool";
-import { pack_tf_binary, unpack_tf_binary, unpack_uuid_binary } from "./BinaryUtils";
-import { parse } from "uuid";
+import { pack_tf_binary, unpack_tf_binary } from "./BinaryUtils";
+import { stringify, parse as unpack_uuid_binary } from "uuid";
 
 export abstract class FeatherBMIndex
 {
@@ -114,7 +114,7 @@ export abstract class FeatherBMIndex
         //compute the BM25 score for each document in the inverted index for this token
         const scores : BM25Score[] = tf_entries.map(entry => {
             const { tf, len, timestamp } = unpack_tf_binary(entry.tf);
-            const uuid = unpack_uuid_binary(entry.id);
+            const uuid = stringify(entry.id);
             const score = this.bm25(idf_entry.idf, tf, len, averageDocumentLength);
             return { id: uuid, score: score };
         });
@@ -162,7 +162,7 @@ export abstract class FeatherBMIndex
             for(const token in doc_tf_entries)
             {
                 //we assume that the id is already a UUIDv7, so we can parse it directly
-                const id = parse(doc.uuidv7);
+                const id = unpack_uuid_binary(doc.uuidv7);
 
                 const tf = doc_tf_entries[token];
                 const len = token_count;
