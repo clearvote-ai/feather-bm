@@ -3,6 +3,7 @@ import { GlobalStatisticsEntry, InverseDocumentFrequencyEntry, TermFrequencyEntr
 import { FeatherBMIndex } from "../../FeatherBMIndex";
 import { DynamoDBRead } from "./Helpers/Read";
 import { DynamoDBCreate } from "./Helpers/Create";
+import { DynamoDBDelete } from "./Helpers/Delete";
 
 export const DYNAMO_DB_MAX_BATCH_SIZE = 25;
 export class DynamoDBIndex extends FeatherBMIndex
@@ -34,7 +35,8 @@ export class DynamoDBIndex extends FeatherBMIndex
     }
 
     async delete_internal(tf_entries: TermFrequencyEntry[], idf_entries: InverseDocumentFrequencyEntry[]): Promise<void> {
-        throw new Error("Method not implemented.");
+        await DynamoDBDelete.deleteDynamoDBEntryBatch(this.client, this.tableName, idf_entries);
+        await DynamoDBDelete.deleteDynamoDBEntryBatch(this.client, this.tableName, tf_entries);
     }
 
     async update_global_entry_internal(global_stats: GlobalStatisticsEntry): Promise<void> {

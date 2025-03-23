@@ -54,6 +54,10 @@ export abstract class FeatherBMIndex
             documentCount: new_document_count
         };
 
+        //update the internal state of the index
+        this.documentCount = new_document_count;
+        this.totalDocumentLength = new_total_document_length;
+
         //Adapter is responsible for updating the global stats entry in the data store
         await this.update_global_entry_internal(new_global_stats_entry);
     }
@@ -70,10 +74,6 @@ export abstract class FeatherBMIndex
         //Adapter is responsible for inserting the entries into the data store
         await this.insert_internal(tf_entries, idf_entries);
 
-        //update the totalDocumentLength and documentCount
-        this.totalDocumentLength += global_stats_entry.totalDocumentLength;
-        this.documentCount += global_stats_entry.documentCount;
-
         //update the global stats entry in the data store
         await this.updateGlobalEntry(global_stats_entry, true); //true = insert
     }
@@ -87,22 +87,8 @@ export abstract class FeatherBMIndex
         //Adapter is responsible for deleting the entries from the data store
         await this.delete_internal(tf_entries, idf_entries);
 
-        //update the totalDocumentLength and documentCount
-        this.totalDocumentLength -= global_stats_entry.totalDocumentLength;
-        this.documentCount -= global_stats_entry.documentCount;
-
-        //update the global stats entry to maintain accuracy of BM25 accross the index
-        if(this.documentCount <= 0) throw new Error("Document count cannot be less than 0");
-        if(this.totalDocumentLength <= 0) throw new Error("Total document length cannot be less than 0");
-        const new_global_stats_entry : GlobalStatisticsEntry = {
-            pk: `${this.indexName}#global_stats`, //partition key
-            id: UUID_000, //sort key placeholder for global stats
-            totalDocumentLength: this.totalDocumentLength,
-            documentCount: this.documentCount
-        };
-
         //update the global stats entry in the data store
-        await this.updateGlobalEntry(new_global_stats_entry, false); //false = delete
+        await this.updateGlobalEntry(global_stats_entry, false); //false = delete
     }
 
     //compute the BM25 scores for every relevant document in our inverted index for a given query CONCURRENTLY
