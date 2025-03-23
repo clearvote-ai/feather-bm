@@ -19,10 +19,10 @@ function removeNumbersOutsideRange(tokens: string[], range: { min: number, max: 
     return tokens.filter(token => isNumberInsideRange(token, range));
 }
 
-function isNumberInsideRange(query: string, range: { min: number, max: number }) : boolean
+function isNumberInsideRange(query: string, range: { min: number, max: number }) : boolean 
 {
     //check if the token is a number and if it is outside the range for eg. "1600" is outside 1900-2020
-    const number = parseInt(query);
-    if(isNaN(number)) return true; //not a number
-    return number >= range.min && number <= range.max;
+    const number = parseInt(query); 
+    if(isNaN(number)) return true; //not a number 
+    return number >= range.min && number <= range.max; 
 }

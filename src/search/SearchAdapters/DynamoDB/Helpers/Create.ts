@@ -50,10 +50,10 @@ export async function putDynamoDBIDFEntryBatch(client : DynamoDBDocumentClient, 
     }
 }
 
-export async function updateGlobalStatsEntry(client: DynamoDBDocumentClient, table_name: string, index_name: string, stats: InvertedIndexGlobalStatistics): Promise<void> {
+export async function updateGlobalStatsEntry(client: DynamoDBDocumentClient, table_name: string, indexName: string, stats: InvertedIndexGlobalStatistics): Promise<void> {
     const placeholder_0_id = new Uint8Array(16);
     const global_entry = {
-        pk: `${index_name}#global_stats`,
+        pk: `${indexName}#global_stats`,
         id: placeholder_0_id,
         totalDocumentLength: stats.totalDocumentLength,
         documentCount: stats.documentCount,

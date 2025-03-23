@@ -1,144 +1,60 @@
-import { BatchWriteCommand, DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
-import { DynamoDBIndexEntry } from "../DynamoDBIndex";
-import { InvertedIndexGlobalStatistics } from "../../../BM25/InvertedIndex";
-import { UpdateItemInput } from "@aws-sdk/client-dynamodb";
+import { BatchWriteCommand, DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBIDFEntry, DynamoDBIndexEntry } from "../DynamoDBIndex";
 
-/*
-Update ITEM API
-
-{
-   "AttributeUpdates": { 
-      "string" : { 
-         "Action": "string",
-         "Value": { 
-            "B": blob,
-            "BOOL": boolean,
-            "BS": [ blob ],
-            "L": [ 
-               "AttributeValue"
-            ],
-            "M": { 
-               "string" : "AttributeValue"
-            },
-            "N": "string",
-            "NS": [ "string" ],
-            "NULL": boolean,
-            "S": "string",
-            "SS": [ "string" ]
+export async function deleteDynamoDBEntryBatch(client: DynamoDBDocumentClient, table_name: string, entries: DynamoDBIndexEntry[]): Promise<void> {
+   const deleteRequests = entries.map(entry => ({
+      DeleteRequest: {
+         Key: {
+            pk: entry.pk,
+            id: entry.id
          }
       }
-   },
-   "ConditionalOperator": "string",
-   "ConditionExpression": "string",
-   "Expected": { 
-      "string" : { 
-         "AttributeValueList": [ 
-            { 
-               "B": blob,
-               "BOOL": boolean,
-               "BS": [ blob ],
-               "L": [ 
-                  "AttributeValue"
-               ],
-               "M": { 
-                  "string" : "AttributeValue"
-               },
-               "N": "string",
-               "NS": [ "string" ],
-               "NULL": boolean,
-               "S": "string",
-               "SS": [ "string" ]
-            }
-         ],
-         "ComparisonOperator": "string",
-         "Exists": boolean,
-         "Value": { 
-            "B": blob,
-            "BOOL": boolean,
-            "BS": [ blob ],
-            "L": [ 
-               "AttributeValue"
-            ],
-            "M": { 
-               "string" : "AttributeValue"
-            },
-            "N": "string",
-            "NS": [ "string" ],
-            "NULL": boolean,
-            "S": "string",
-            "SS": [ "string" ]
+   }));
+   // DynamoDB allows a maximum of 25 items per batch write
+   if (deleteRequests.length > 25) {
+      throw new Error(`Batch size exceeds maximum of 25 items. Current size: ${deleteRequests.length}`);
+   }
+   // Create the params for the BatchWriteCommand
+   const params = {
+      RequestItems: {
+         [table_name]: deleteRequests
+      }
+   };
+
+   try {
+      await client.send(new BatchWriteCommand(params));
+   }
+   catch (error) {
+      console.error("Error deleting entries from DynamoDB", { error });
+      throw error;
+   }
+}
+
+export async function deleteDynamoDBIDFBatch(client: DynamoDBDocumentClient, table_name: string, entries: DynamoDBIDFEntry[]): Promise<void> {
+   const deleteRequests = entries.map(entry => ({
+      DeleteRequest: {
+         Key: {
+            pk: entry.pk,
+            id: entry.id
          }
       }
-   },
-   "ExpressionAttributeNames": { 
-      "string" : "string" 
-   },
-   "ExpressionAttributeValues": { 
-      "string" : { 
-         "B": blob,
-         "BOOL": boolean,
-         "BS": [ blob ],
-         "L": [ 
-            "AttributeValue"
-         ],
-         "M": { 
-            "string" : "AttributeValue"
-         },
-         "N": "string",
-         "NS": [ "string" ],
-         "NULL": boolean,
-         "S": "string",
-         "SS": [ "string" ]
+   }));
+   // DynamoDB allows a maximum of 25 items per batch write
+   if (deleteRequests.length > 25) {
+      throw new Error(`Batch size exceeds maximum of 25 items. Current size: ${deleteRequests.length}`);
+   }
+   // Create the params for the BatchWriteCommand
+   const params = {
+      RequestItems: {
+         [table_name]: deleteRequests
       }
-   },
-   "Key": { 
-      "string" : { 
-         "B": blob,
-         "BOOL": boolean,
-         "BS": [ blob ],
-         "L": [ 
-            "AttributeValue"
-         ],
-         "M": { 
-            "string" : "AttributeValue"
-         },
-         "N": "string",
-         "NS": [ "string" ],
-         "NULL": boolean,
-         "S": "string",
-         "SS": [ "string" ]
-      }
-   },
-   "ReturnConsumedCapacity": "string",
-   "ReturnItemCollectionMetrics": "string",
-   "ReturnValues": "string",
-   "ReturnValuesOnConditionCheckFailure": "string",
-   "TableName": "string",
-   "UpdateExpression": "string"
-}*/
+   };
 
-/*
-export interface DynamoDBIndexEntry {
-    index_name: string,
-    sortkey: `${DynamoDBIndexToken}`,
-    documents: InverseDocumentValue[],
-    idf: number
-}*/
-
-//this function returns the UpdateItemInput for deleting the document entry from "documents" attribute in the token entry
-/*
-export function removeDocumentsFromTokenEntry(entry: DynamoDBIndexEntry, ids: string[]): UpdateItemInput
-{
-    return {
-        TableName: entry.index_name,
-        Key: {
-            index_name: entry.index_name,
-            sortkey: entry.sortkey
-        },
-        UpdateExpression: "DELETE documents :ids",
-        ExpressionAttributeValues: {
-            ":ids": { SS: ids }
-        }
-    }
-
-}*/
+   try {
+      await client.send(new BatchWriteCommand(params));
+   }
+   catch (error) {
+      console.error("Error deleting entries from DynamoDB", { error });
+      throw error;
+   }
+}

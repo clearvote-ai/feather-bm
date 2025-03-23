@@ -1,4 +1,5 @@
-import { InvertedIndexEntry, IndexedDocument, buildInvertedEndexEntries, InvertedIndex, InvertedIndexGlobalStatistics } from "../../BM25/InvertedIndex";
+import { IndexedDocument, InvertedIndex, InvertedIndexGlobalStatistics, IndexEntry } from "../../../FeatherTypes";
+import { buildInvertedEndexEntries } from "../../BM25/InvertedIndex";
 import { FeatherBMIndex } from "../FeatherBMIndex";
 
 
@@ -6,27 +7,18 @@ import { FeatherBMIndex } from "../FeatherBMIndex";
 
 export class HashMapIndex extends FeatherBMIndex
 {
-    
+    index: InvertedIndex = [];
 
-    index: InvertedIndex = {};
-    totalDocumentLength: number = 0;
-    documentCount: number = 0;
-
-    private constructor(index : InvertedIndex, totalDocumentLength: number, documentCount: number)
+    constructor(docs: IndexedDocument[], indexName: string)
     {
-        super();
+        if(docs.length === 0) throw new Error("No documents to index");
+        const { global_stats, index } = buildInvertedEndexEntries(docs, indexName);
+
+        super(indexName, global_stats.totalDocumentLength, global_stats.documentCount);
         this.index = index;
-        this.totalDocumentLength = totalDocumentLength;
-        this.documentCount = documentCount
     }
 
-    public static from(docs: IndexedDocument[])
-    {
-        const { global_stats, index } = buildInvertedEndexEntries(docs);
-        return new HashMapIndex(index, global_stats.totalDocumentLength, global_stats.documentCount);
-    }
-
-    getEntry(token: string): Promise<InvertedIndexEntry | undefined> {
+    getEntry(token: string): Promise<IndexEntry | undefined> {
         return Promise.resolve(this.index[token]);
     }
 
@@ -34,7 +26,7 @@ export class HashMapIndex extends FeatherBMIndex
         return this.totalDocumentLength / this.documentCount
     }
 
-    async insert_batch_internal(index: InvertedIndex, global_stats: InvertedIndexGlobalStatistics): Promise<void> {
+    async insert_internal(index: InvertedIndex, global_stats: InvertedIndexGlobalStatistics): Promise<void> {
         
         //combine the new index with the existing index
         //for each token in the index
@@ -55,7 +47,7 @@ export class HashMapIndex extends FeatherBMIndex
         this.documentCount += global_stats.documentCount;
     }
     
-    async delete_batch_internal(minus_index: InvertedIndex, minus_global_stats: InvertedIndexGlobalStatistics): Promise<void> {
+    async delete_internal(minus_index: InvertedIndex, minus_global_stats: InvertedIndexGlobalStatistics): Promise<void> {
         //remove from this.index all the entries in minus_index
         for(const token in minus_index)
         {

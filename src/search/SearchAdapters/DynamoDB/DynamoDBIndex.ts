@@ -1,19 +1,15 @@
-import { BatchWriteCommand, DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
-import { InverseDocumentValue, InvertedIndex, InvertedIndexEntry, InvertedIndexGlobalStatistics } from "../../BM25/InvertedIndex";
+import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import { InverseDocumentValue, InvertedIndex, InvertedIndexEntry, InvertedIndexGlobalStatistics } from "../../../FeatherTypes";
 import { FeatherBMIndex } from "../FeatherBMIndex";
 import { putDynamoDBIDFEntryBatch, putDynamoDBIndexEntryBatch, updateGlobalStatsEntry } from "./Helpers/Create";
 import { getDynamoDBInverseDocumentFrequencyEntry, getGlobalStatsEntry, getIndexEntry } from "./Helpers/Read";
 import { uuidv7 } from "uuidv7";
-import { parse } from 'uuid';
+import { parse, stringify } from 'uuid';
 import { BinaryAttributeValue } from "aws-sdk/clients/dynamodb";
-import { stringify } from 'uuid';
+import { deleteDynamoDBEntryBatch, deleteDynamoDBIDFBatch } from "./Helpers/Delete";
 
 
-type DynamoDBIndexToken = string;
-type DynamoDBIndexID = string;
 
-//partition key for the search table is the index name + token
-export type DynamoDBIndexPartitionKey = `${DynamoDBIndexID}#${DynamoDBIndexToken}`;
 
 //TODO: combine tokens into one flat entry
 export interface DynamoDBIndexEntry {
@@ -40,35 +36,25 @@ export type DynamoDBIndexGlobalEntry = DynamoDBIndexGlobalEntryFields & Inverted
 export class DynamoDBIndex extends FeatherBMIndex
 {
     client: DynamoDBDocumentClient;
-    table_name: string;
-    index_name: string;
-    //the count in tokens of all documents added to the index
-    totalDocumentLength: number;
-    documentCount: number;
+    MAX_BATCH_SIZE = 25;
 
-    private constructor(client: DynamoDBDocumentClient, table_name: string, index_name: string, averageDocumentLength: number, documentCount: number)
+    constructor(client: DynamoDBDocumentClient, table_name: string, indexName: string, averageDocumentLength: number, documentCount: number)
     {
-        super();
+        super(table_name, indexName, averageDocumentLength, documentCount);
         this.client = client;
-        this.table_name = table_name;
-        this.index_name = index_name;
-        this.totalDocumentLength = averageDocumentLength;
-        this.documentCount = documentCount;
     }
 
-    static async from(client: DynamoDBDocumentClient, table_name: string, index_name: string): Promise<DynamoDBIndex>
+    static async from(client: DynamoDBDocumentClient, tableName: string, indexName: string): Promise<DynamoDBIndex>
     {
-        const index = new DynamoDBIndex(client, table_name, index_name, 0, 0);
-        const global_entry = await getGlobalStatsEntry(client, table_name, index_name);
-        index.totalDocumentLength = global_entry.totalDocumentLength;
-        index.documentCount = global_entry.documentCount;
-
+        
+        const global_entry = await getGlobalStatsEntry(client, tableName, indexName);
+        const index = new DynamoDBIndex(client, tableName, indexName, global_entry.totalDocumentLength, global_entry.documentCount);
         return index;
     }
 
     async getEntry(token: string): Promise<InvertedIndexEntry | undefined> 
     {
-        const entries = await getIndexEntry(this.client, this.table_name, this.index_name, token);
+        const entries = await getIndexEntry(this.client, this.tableName, this.indexName, token);
         if(entries.length === 0) return undefined;
 
         //if the first entry is the idf entry, assign idf otherwise get the entry directly
@@ -76,7 +62,7 @@ export class DynamoDBIndex extends FeatherBMIndex
 
         const idf = possible_idf.idf !== undefined ? 
             possible_idf.idf : 
-            await getDynamoDBInverseDocumentFrequencyEntry(this.client, this.table_name, this.index_name, token);
+            await getDynamoDBInverseDocumentFrequencyEntry(this.client, this.tableName, this.indexName, token);
        
         if(possible_idf.idf !== undefined) entries.shift(); //remove the idf entry from the list
 
@@ -96,18 +82,12 @@ export class DynamoDBIndex extends FeatherBMIndex
             return { id, tf, len } as InverseDocumentValue;
         });
 
-        
-
         return { documents: inverse_document_values, idf };
-        
     }
 
-    async getAverageDocumentLength(): Promise<number> {
-        return this.totalDocumentLength / this.documentCount;
-    }
+    
 
-    async insert_batch_internal(insert_entries: InvertedIndex, global_stats: InvertedIndexGlobalStatistics): Promise<void> {
-
+    async insert_internal(insert_entries: InvertedIndex, global_stats: InvertedIndexGlobalStatistics): Promise<void> {
         const entries = Object.keys(insert_entries);
 
         const index_entries : DynamoDBIndexEntry[] = entries.map(token => {
@@ -119,23 +99,27 @@ export class DynamoDBIndex extends FeatherBMIndex
                 const uuid_bytes = parse(uuid);
 
                 const tf_binary = new Uint8Array(12);
+                
                 //first 2 bytes are the term frequency
                 const tf_value = doc.tf & 0xFFFF; //mask to get the last 16 bits
                 tf_binary.set([tf_value & 0xFF, (tf_value >> 8) & 0xFF], 0);
+
                 //next 4 bytes are the document length
-                const doc_len = doc.len & 0xFFFFFFFF; //mask to get the last 32 bits
+                const len = doc.len & 0xFFFFFFFF; //mask to get the last 32 bits
                 tf_binary.set([
-                    doc_len & 0xFF,
-                    (doc_len >> 8) & 0xFF,
-                    (doc_len >> 16) & 0xFF,
-                    (doc_len >> 24) & 0xFF
+                    len & 0xFF,
+                    (len >> 8) & 0xFF,
+                    (len >> 16) & 0xFF,
+                    (len >> 24) & 0xFF
                 ], 2);
+
                 //next 6 bytes are the timestamp
                 //copy first 6 bytes of the uuid to the tf binary
                 const timestamp = uuid_bytes.slice(0, 6);
                 tf_binary.set(timestamp, 6);
+
                 return {
-                    pk: `${this.index_name}#${token}`,
+                    pk: `${this.indexName}#${token}`,
                     id: uuid_bytes,
                     tf: tf_binary
                 } satisfies DynamoDBIndexEntry;
@@ -144,49 +128,84 @@ export class DynamoDBIndex extends FeatherBMIndex
 
         console.log(`Inserting ${index_entries.length} entries into DynamoDB`);
 
-        //split into batches of 25
-        const MAX_BATCH_SIZE = 25;
-        for( let i = 0; i < index_entries.length; i += MAX_BATCH_SIZE )
+        //split into batches
+        for( let i = 0; i < index_entries.length; i += this.MAX_BATCH_SIZE )
         {
             if(i % 2000 === 0) console.log(`Inserting batch ${i} of ${index_entries.length}`);
-            const batch = index_entries.slice(i, i + MAX_BATCH_SIZE);
-            await putDynamoDBIndexEntryBatch(this.client, this.table_name, batch);
+            const batch = index_entries.slice(i, i + this.MAX_BATCH_SIZE);
+            await putDynamoDBIndexEntryBatch(this.client, this.tableName, batch);
         }
 
         const idf_entries : DynamoDBIDFEntry[] = entries.map(token => {
             const idf = insert_entries[token].idf;
             const placeholder_0_id = new Uint8Array(16);
             return {
-                pk: `${this.index_name}#${token}`,
+                pk: `${this.indexName}#${token}`,
                 id: placeholder_0_id,
                 idf
             } satisfies DynamoDBIDFEntry;
         });
 
         //split into batches of 25
-        for( let i = 0; i < idf_entries.length; i += MAX_BATCH_SIZE )
+        for( let i = 0; i < idf_entries.length; i += this.MAX_BATCH_SIZE )
         {
             if(i % 2000 === 0) console.log(`Inserting batch ${i} of ${idf_entries.length}`);
-            const batch = idf_entries.slice(i, i + MAX_BATCH_SIZE);
-            await putDynamoDBIDFEntryBatch(this.client, this.table_name, batch);
+            const batch = idf_entries.slice(i, i + this.MAX_BATCH_SIZE);
+            await putDynamoDBIDFEntryBatch(this.client, this.tableName, batch);
         }
 
         //update the global entry
-        await updateGlobalStatsEntry(this.client, this.table_name, this.index_name, global_stats);
+        await updateGlobalStatsEntry(this.client, this.tableName, this.indexName, global_stats);
     }
 
-    async delete_batch_internal(delete_entries: InvertedIndex, global_stats: InvertedIndexGlobalStatistics): Promise<void> {
+    async delete_internal(delete_entries: InvertedIndex, global_stats: InvertedIndexGlobalStatistics): Promise<void> {
         
         //we recieve an index built from the documents to delete
         const entries = Object.keys(delete_entries);
 
-        //each entry is a token + timestamp thats been effected by the delete operation
-        //we only want to remove documents from the index entry associated with the token and timestamp NOT the entire token entry itself
-        
+        const index_entries : DynamoDBIndexEntry[] = entries.map(token => {
+            const entry = delete_entries[token];
+            const documents = entry.documents;
 
-        
+            return documents.map(doc => {
+                const uuid = parse(doc.id);
+                return {
+                    pk: `${this.indexName}#${token}`,
+                    id: uuid,
+                    tf: new Uint8Array(12) //TODO: set to 0
+                } satisfies DynamoDBIndexEntry;
+            });
+        }).flat();
 
+        console.log(`Deleting ${index_entries.length} entries from DynamoDB`);
+        //split into batches
+        for( let i = 0; i < index_entries.length; i += this.MAX_BATCH_SIZE )
+        {
+            if(i % 2000 === 0) console.log(`Deleting batch ${i} of ${index_entries.length}`);
+            const batch = index_entries.slice(i, i + this.MAX_BATCH_SIZE);
+            await deleteDynamoDBEntryBatch(this.client, this.tableName, batch);
+        }
         
+        //delete the idf entries
+        const idf_entries : DynamoDBIDFEntry[] = entries.map(token => {
+            const placeholder_0_id = new Uint8Array(16);
+            return {
+                pk: `${this.indexName}#${token}`,
+                id: placeholder_0_id,
+                idf: 0
+            } satisfies DynamoDBIDFEntry;
+        });
+
+        //split into batches of 25
+        for( let i = 0; i < idf_entries.length; i += this.MAX_BATCH_SIZE )
+        {
+            if(i % 2000 === 0) console.log(`Deleting batch ${i} of ${idf_entries.length}`);
+            const batch = idf_entries.slice(i, i + this.MAX_BATCH_SIZE);
+            await deleteDynamoDBIDFBatch(this.client, this.tableName, batch);
+        }
+
+        //update the global entry
+        await updateGlobalStatsEntry(this.client, this.tableName, this.indexName, global_stats);
     }
     
 }

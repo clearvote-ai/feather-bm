@@ -1,8 +1,8 @@
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
-import { IndexedDocument } from "../../BM25/InvertedIndex";
-import test_docs from "../../test_data/arkansas_2023.json";
+import {getTestDocs} from "../../../search/test_data/TestData";
 import { DynamoDBIndex } from "./DynamoDBIndex";
 import { CreateTableCommand, DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { IndexedDocument } from "../../../FeatherTypes";
 
 const local_dynamo_client = new DynamoDBClient({
     region: "us-west-2",
@@ -20,7 +20,7 @@ describe('DynamoDB', () => {
         const client = DynamoDBDocumentClient.from(local_dynamo_client);
         const table = await client.send( new CreateTableCommand( {
             TableName: "FeatherIndex",
-            //partition key "index_name" and sort key "sortkey"
+            //partition key "indexName" and sort key "sortkey"
             KeySchema: [
                 { AttributeName: "pk", KeyType: "HASH" },
                 { AttributeName: "id", KeyType: "RANGE" }
@@ -35,12 +35,12 @@ describe('DynamoDB', () => {
     });
 
     test('insert', async () => {
-        const docs = test_docs as IndexedDocument[];
+        const docs = getTestDocs();
 
         const client = DynamoDBDocumentClient.from(local_dynamo_client);
         const index = await DynamoDBIndex.from(client, "FeatherIndex", "test_index");
 
-        await index.insert_batch(docs);
+        await index.insert(docs);
     }, 1000000);
 
 
@@ -52,9 +52,9 @@ describe('DynamoDB', () => {
 
         const top_score = scores[0];
 
-        const docs = test_docs as IndexedDocument[];
+        const docs = getTestDocs();
 
-        const top_doc = docs.find(doc => doc.sortkey === top_score.id);
+        const top_doc = docs.find(doc => doc.id === top_score.id);
 
         console.log("Top Score: ", top_score);
         console.log("Top Document: ", top_doc);
@@ -67,11 +67,11 @@ describe('DynamoDB', () => {
 
         const scores = await index.query("franchise tax");
 
-        const full_docs = test_docs as IndexedDocument[];
+        const full_docs = getTestDocs();
 
-        const scored_docs = scores.map(score => full_docs.find(doc => doc.sortkey === score.id));
+        const scored_docs = scores.map(score => full_docs.find(doc => doc.id === score.id));
 
-        await index.delete_batch(scored_docs as IndexedDocument[]);
+        await index.delete(scored_docs as IndexedDocument[]);
 
         const new_scores = await index.query("franchise tax");
 
