@@ -1,5 +1,5 @@
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
-import { GlobalStatisticsEntry, InverseDocumentFrequencyEntry, TermFrequencyEntry, UUID_000 } from "../../../FeatherTypes";
+import { GlobalStatisticsEntry, InverseDocumentFrequencyEntry, TermFrequencyEntry, UUID_000 } from "../../FeatherBMIndex.d";
 import { FeatherBMIndex } from "../../FeatherBMIndex";
 import { DynamoDBRead } from "./Helpers/Read";
 import { DynamoDBCreate } from "./Helpers/Create";

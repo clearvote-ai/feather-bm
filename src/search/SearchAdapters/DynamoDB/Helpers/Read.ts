@@ -1,5 +1,5 @@
 import { DynamoDBDocumentClient, GetCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
-import { GlobalStatisticsEntry, TermFrequencyEntry, UUID_000 } from "../../../../FeatherTypes";
+import { GlobalStatisticsEntry, TermFrequencyEntry, UUID_000 } from "../../../FeatherBMIndex.d";
 
 export namespace DynamoDBRead {
     export async function getInverseDocumentFrequencyEntry(client: DynamoDBDocumentClient, table_name: string, indexName: string, token: string): Promise<number> {

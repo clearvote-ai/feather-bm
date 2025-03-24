@@ -1,5 +1,5 @@
 import { BatchWriteCommand, DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
-import { GlobalStatisticsEntry, InverseDocumentFrequencyEntry, TermFrequencyEntry } from "../../../../FeatherTypes";
+import { GlobalStatisticsEntry, InverseDocumentFrequencyEntry, TermFrequencyEntry } from "../../../FeatherBMIndex.d";
 import { DYNAMO_DB_MAX_BATCH_SIZE } from "../DynamoDBIndex";
 
 export namespace DynamoDBCreate {

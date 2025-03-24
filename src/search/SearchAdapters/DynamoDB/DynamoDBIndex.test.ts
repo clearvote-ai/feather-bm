@@ -1,7 +1,7 @@
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { DynamoDBIndex } from "./DynamoDBIndex";
 import { CreateTableCommand, DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { IndexedDocument } from "../../../FeatherTypes";
+import { IngestionDocument } from "../../../documents/FeatherDocumentStore.d";
 import test_docs from "../../../test_data/test_docs.json";
 
 const local_dynamo_client = new DynamoDBClient({
@@ -35,7 +35,7 @@ describe('DynamoDB', () => {
     });
 
     test('insert', async () => {
-        const docs = test_docs as IndexedDocument[];
+        const docs = test_docs as IngestionDocument[];
 
         const client = DynamoDBDocumentClient.from(local_dynamo_client);
         const index = await DynamoDBIndex.from(client, "FeatherIndex", "test_index");
@@ -54,7 +54,7 @@ describe('DynamoDB', () => {
 
         console.log("Top Score: ", top_score);
 
-        const docs = test_docs as IndexedDocument[];
+        const docs = test_docs as IngestionDocument[];
 
         const top_doc = docs.find(doc => doc.uuidv7 === top_score.id);
 
@@ -69,11 +69,11 @@ describe('DynamoDB', () => {
 
         const scores = await index.query("franchise tax");
 
-        const full_docs = test_docs as IndexedDocument[];
+        const full_docs = test_docs as IngestionDocument[];
 
         const scored_docs = scores.map(score => full_docs.find(doc => doc.uuidv7 === score.id));
 
-        await index.delete(scored_docs as IndexedDocument[]);
+        await index.delete(scored_docs as IngestionDocument[]);
 
         const new_scores = await index.query("franchise tax");
 

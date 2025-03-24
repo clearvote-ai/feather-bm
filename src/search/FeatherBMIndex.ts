@@ -1,9 +1,9 @@
-import { GlobalStatisticsEntry, IndexedDocument, IndexEntry, InverseDocumentFrequencyEntry, TermFrequencyEntry, UUID_000 } from "../FeatherTypes";
-import { BM25Score } from "../FeatherTypes";
+import { BM25Score, GlobalStatisticsEntry, IndexEntry, InverseDocumentFrequencyEntry, TermFrequencyEntry, UUID_000 } from "./FeatherBMIndex.d";
 import { expandQueryToTokens } from "./NLPUtils";
 import PromisePool from "@supercharge/promise-pool";
 import { pack_tf_binary, unpack_tf_binary } from "./BinaryUtils";
-import { stringify, parse as unpack_uuid_binary } from "uuid";
+import { parse, stringify } from "uuid";
+import { IngestionDocument } from "../documents/FeatherDocumentStore.d";
 
 export abstract class FeatherBMIndex
 {
@@ -66,7 +66,7 @@ export abstract class FeatherBMIndex
     //NOTE: you should ensure the documents are NOT already in the index before calling insert
     //calling insert here will overwrite any existing documents with the same id but it might result in undefined index behavior
     //if you inserted 2 different versions of the same document with the same UUID then the index will keep both versions which you may not want
-    async insert(documents: IndexedDocument[] | IndexedDocument) : Promise<void>{
+    async insert(documents: IngestionDocument[] | IngestionDocument) : Promise<void>{
         if(!Array.isArray(documents)) documents = [documents]; //ensure we have an array of documents
         if(documents.length === 0) return; //nothing to insert
         const { global_stats_entry, idf_entries, tf_entries } = this.computeInvertedEndexEntries(documents);
@@ -79,7 +79,7 @@ export abstract class FeatherBMIndex
     }
 
     //NOTE: you should ensure the documents are already in the index before calling delete
-    async delete(documents: IndexedDocument[] | IndexedDocument ) : Promise<void> {
+    async delete(documents: IngestionDocument[] | IngestionDocument ) : Promise<void> {
         if(!Array.isArray(documents)) documents = [documents]; //ensure we have an array of documents
         if(documents.length === 0) return; //nothing to delete
         const { global_stats_entry, idf_entries, tf_entries } = this.computeInvertedEndexEntries(documents);
@@ -155,7 +155,7 @@ export abstract class FeatherBMIndex
     }
 
     //the function that actually builds the inverted index entries for a set of documents
-    computeInvertedEndexEntries(documents: IndexedDocument[])
+    computeInvertedEndexEntries(documents: IngestionDocument[])
     {
         const term_frequency_entries : TermFrequencyEntry[] = [];
         const idf_entries : InverseDocumentFrequencyEntry[] = [];
@@ -168,7 +168,7 @@ export abstract class FeatherBMIndex
         //TODO: make this a concurrent operation
         for(const doc of documents)
         {
-            const words = expandQueryToTokens(doc.full_text);
+            const words = expandQueryToTokens(doc.text);
             const token_count = words.length;
             const doc_tf_entries : { [word: string] : number } = {};
 
@@ -185,7 +185,7 @@ export abstract class FeatherBMIndex
             for(const token in doc_tf_entries)
             {
                 //we assume that the id is already a UUIDv7, so we can parse it directly
-                const id = unpack_uuid_binary(doc.uuidv7);
+                const id = parse(doc.uuidv7);
 
                 const tf = doc_tf_entries[token];
                 const len = token_count;
