@@ -13,6 +13,7 @@ export interface IngestionDocument
 
 //NOTE: This is the type thats returned from FeatherDocumentStore after hydration (aka. decompression)
 export type FeatherDocument = {
+    pk: string, //partition key
     id: string, //sort key UUIDv7
     sha: Uint8Array, //sha256 hash
     title?: string,

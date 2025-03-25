@@ -3,7 +3,6 @@ import { FeatherDocument, FeatherDocumentEntry, IngestionDocument } from "./Feat
 import { sha256 } from "js-sha256";
 import { compress, decompress, IBrotliCompressOptions } from 'brotli-compress'
 import { parse, stringify } from "uuid";
-import { FeatherBMIndex } from "../search/FeatherBMIndex";
 
 export abstract class FeatherDocumentStore
 {
@@ -19,12 +18,9 @@ export abstract class FeatherDocumentStore
         quality: 11,
     } 
 
-    featherIndex: FeatherBMIndex;
-
-    constructor(indexName: string, featherIndex: FeatherBMIndex)
+    constructor(indexName: string)
     {
         this.indexName = indexName;
-        this.featherIndex = featherIndex;
     }
 
     async insert(documents: IngestionDocument[] | IngestionDocument): Promise<void>
@@ -56,15 +52,7 @@ export abstract class FeatherDocumentStore
         });
 
         //Adapter is responsible for inserting the entries in the data store
-        const inserted_entries = await this.insert_internal(results as FeatherDocumentEntry[]);
-
-        const successfully_inserted_docs = documents.filter((doc, index) => {
-            return inserted_entries[index] !== null;
-        });
-
-        //Index the documents
-        await this.featherIndex.insert(successfully_inserted_docs);
-
+        await this.insert_internal(results as FeatherDocumentEntry[]);
     }
 
     async delete(ids: Uint8Array | Uint8Array[]): Promise<void>
@@ -76,20 +64,7 @@ export abstract class FeatherDocumentStore
         if(ids.length === 0) throw new Error("No documents to delete");
 
         //Adapter is responsible for deleting the entries in the data store
-        const removed_entries = await this.delete_internal(ids);
-
-        const removed_documents = removed_entries.map((entry) => {
-            const decompressed_text = decompress(entry.txt);
-            return {
-                uuidv7: stringify(entry.id),
-                title: entry.t,
-                text: decompressed_text.toString(),
-                published: entry.p,
-            } as IngestionDocument;
-        });
-
-        //de index the documents
-        await this.featherIndex.delete(removed_documents);
+        await this.delete_internal(ids);
     }
 
 
@@ -117,6 +92,7 @@ export abstract class FeatherDocumentStore
         const text = decompressed_text.toString(); 
 
         return {
+            pk: this.indexName,
             id: uuid,
             sha: compressed_document.sha,
             title: compressed_document.t,
@@ -125,13 +101,12 @@ export abstract class FeatherDocumentStore
         } as FeatherDocument;
     }
 
+    //TODO: Implement DynamoDB Table for DocumentStore
     abstract get_document_by_sha(shas: ArrayBuffer[]) : Promise<(FeatherDocumentEntry | null)[]>;
     abstract get_document_by_uuid(uuid: Uint8Array) : Promise<FeatherDocumentEntry | null>;
 
     abstract search_by_title(title: string): Promise<FeatherDocumentEntry[]>;
-    abstract search_by_text(query: string): Promise<FeatherDocumentEntry[]>;
-
     
-    abstract insert_internal(documents: FeatherDocumentEntry[]) : Promise<FeatherDocumentEntry[]>;
-    abstract delete_internal(uuids: Uint8Array[]) : Promise<FeatherDocumentEntry[]>;
+    abstract insert_internal(documents: FeatherDocumentEntry[]) : Promise<Uint8Array[]>;
+    abstract delete_internal(uuids: Uint8Array[]) : Promise<Uint8Array[]>;
 }   

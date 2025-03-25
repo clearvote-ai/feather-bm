@@ -1,8 +1,8 @@
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { DynamoDBIndex } from "./DynamoDBIndex";
 import { CreateTableCommand, DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { IngestionDocument } from "../../../documents/FeatherDocumentStore.d";
-import test_docs from "../../../test_data/test_docs.json";
+import { IngestionDocument } from "../../documents/FeatherDocumentStore";
+import test_docs from "../../test_data/test_docs.json";
 
 const local_dynamo_client = new DynamoDBClient({
     region: "us-west-2",
