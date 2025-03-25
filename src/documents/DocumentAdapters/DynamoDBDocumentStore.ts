@@ -17,11 +17,11 @@ export class DynamoDBDocumentStore extends FeatherDocumentStore
     }
 
     get_document_by_sha(shas: ArrayBuffer[]): Promise<(FeatherDocumentEntry | null)[]> {
-        throw new Error("Method not implemented.");
+        return Promise.all(shas.map(sha => this.getDocumentBySHA(this.client, this.tableName, sha)));
     }
 
     get_document_by_uuid(uuid: Uint8Array): Promise<FeatherDocumentEntry | null> {
-        throw new Error("Method not implemented.");
+        return this.getDocumentByUUID(this.client, this.tableName, this.indexName, uuid);
     }
 
     search_by_title(title: string): Promise<FeatherDocumentEntry[]> {

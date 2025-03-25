@@ -14,10 +14,9 @@ export type IndexPartitionKey = `${IndexID}#${IndexToken}`;
 export type TermFrequencyEntry = {
     pk: IndexPartitionKey, //partition key
     id: Uint8Array, //sort key UUIDv7
-    tf: Uint8Array, //12 byte secondary index sort key:
+    tf: Uint8Array, //6 byte secondary index sort key:
     // first 2 bytes are term frequency, 16 bit uint
     // next 4 bytes are document len, 32 bit uint
-    // next 6 bytes are the timestamp (first 6 bytes copied from UUIDv7)
 }
 
 //we also need a global statistics object to keep up with the averageDocumentLength and the document_token_counts

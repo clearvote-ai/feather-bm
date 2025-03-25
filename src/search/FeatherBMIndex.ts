@@ -136,7 +136,7 @@ export abstract class FeatherBMIndex
         
         //compute the BM25 score for each document in the inverted index for this token
         const scores : BM25Score[] = tf_entries.map(entry => {
-            const { tf, len, timestamp } = unpack_tf_binary(entry.tf);
+            const { tf, len } = unpack_tf_binary(entry.tf);
             const uuid = stringify(entry.id);
             const score = this.bm25(idf_entry.idf, tf, len, averageDocumentLength);
             return { id: uuid, score: score };
@@ -189,13 +189,12 @@ export abstract class FeatherBMIndex
 
                 const tf = doc_tf_entries[token];
                 const len = token_count;
-                const timestamp = id.slice(0, 6); //first 6 bytes of the UUIDv7
-                const tf_binary = pack_tf_binary(tf, len, timestamp);
+                const tf_binary = pack_tf_binary(tf, len);
 
                 const entry : TermFrequencyEntry = {
                     pk: `${this.indexName}#${token}`, //partition key
                     id: id, //sort key UUIDv7
-                    tf: tf_binary //12 byte secondary index sort key
+                    tf: tf_binary //6 byte secondary index sort key
                 }
 
                 term_frequency_entries.push(entry);

@@ -3,9 +3,9 @@ import { parse, stringify } from 'uuid';
 const MAX_UINT16 = 65535;
 const MAX_UINT32 = 4294967295;
 
-export function pack_tf_binary(tf: number, len: number, timestamp: Uint8Array) : Uint8Array 
+export function pack_tf_binary(tf: number, len: number) : Uint8Array 
 {
-    const tf_binary = new Uint8Array(12);
+    const tf_binary = new Uint8Array(6);
 
     //if the term frequency is greater than 65535, truncate it to 65535
     const tf_truncated = Math.min(tf, 65535);
@@ -22,20 +22,17 @@ export function pack_tf_binary(tf: number, len: number, timestamp: Uint8Array) :
     len_bytes[3] = (len_truncated >> 24) & 0xFF;
     tf_binary.set(len_bytes, 2);
 
-    //next 6 bytes are the timestamp
-    tf_binary.set(timestamp.slice(0, 6), 6);
     return tf_binary;
 }
 
-export function unpack_tf_binary(data: Uint8Array) : { tf: number, len: number, timestamp: Uint8Array }
+export function unpack_tf_binary(data: Uint8Array) : { tf: number, len: number }
 {
-    if (data.length !== 12) {
-        throw new Error("Invalid data length, expected 12 bytes");
+    if (data.length !== 6) {
+        throw new Error("Invalid data length, expected 6 bytes");
     }
     const tf = data[0] | (data[1] << 8);
     const len = (data[2] | (data[3] << 8) | (data[4] << 16) | (data[5] << 24)) >>> 0; // ensure unsigned interpretation
-    const timestamp = data.slice(6);
-    return { tf, len, timestamp };
+    return { tf, len };
 }
 
 export function pack_uuid_binary(uuid: string) : Uint8Array
