@@ -1,9 +1,13 @@
-import { BM25Score, GlobalStatisticsEntry, IndexEntry, InverseDocumentFrequencyEntry, TermFrequencyEntry, UUID_000 } from "./FeatherBMIndex.d";
+import { BM25Score, GlobalStatisticsEntry, IndexEntry, InverseDocumentFrequencyEntry, TermFrequencyEntry } from "./FeatherBMIndex.d";
 import { expandQueryToTokens } from "./NLPUtils";
 import PromisePool from "@supercharge/promise-pool";
 import { pack_tf_binary, unpack_tf_binary } from "./BinaryUtils";
 import { parse, stringify } from "uuid";
 import { IngestionDocument } from "../documents/FeatherDocumentStore.d";
+
+//Default UUID for IDF and Global stats entries
+export const UUID_000 = new Uint8Array(16);
+export type UUID_000 = typeof UUID_000;
 
 export abstract class FeatherBMIndex
 {
@@ -37,7 +41,7 @@ export abstract class FeatherBMIndex
         this.B = B;
     }
 
-    async getAverageDocumentLength(): Promise<number> {
+    getAverageDocumentLength(): number {
         return this.totalDocumentLength / this.documentCount;
     }
 
@@ -186,6 +190,10 @@ export abstract class FeatherBMIndex
             {
                 //we assume that the id is already a UUIDv7, so we can parse it directly
                 const id = parse(doc.uuidv7);
+
+                if(id === undefined) {
+                    throw new Error("Invalid UUIDv7");
+                }
 
                 const tf = doc_tf_entries[token];
                 const len = token_count;

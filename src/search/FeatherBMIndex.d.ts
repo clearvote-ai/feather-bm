@@ -1,6 +1,4 @@
-//Default UUID for IDF and Global stats entries
-export declare const UUID_000: Uint8Array;
-export type UUID_000 = typeof UUID_000;
+import { UUID_000 } from "./FeatherBMIndex";
 
 //we need these fields to be able to compute a BM25 score : inverseDocumentFrequency: number, termFrequency: number, documentLength: number, averageDocumentLength: number
 export type InvertedIndex = IndexEntry[];

@@ -1,6 +1,6 @@
 import { BatchWriteCommand, DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
-import { GlobalStatisticsEntry, InverseDocumentFrequencyEntry, TermFrequencyEntry, UUID_000 } from "../FeatherBMIndex";
-import { FeatherBMIndex } from "../FeatherBMIndex";
+import { GlobalStatisticsEntry, InverseDocumentFrequencyEntry, TermFrequencyEntry } from "../FeatherBMIndex.d";
+import { FeatherBMIndex, UUID_000 } from "../FeatherBMIndex";
 
 export const DYNAMO_DB_MAX_BATCH_SIZE = 25;
 export class DynamoDBIndex extends FeatherBMIndex

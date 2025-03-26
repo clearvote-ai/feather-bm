@@ -144,5 +144,29 @@ export class DynamoDBDocumentStore extends FeatherDocumentStore
 
         return null;
     }
+
+    async getDocumentByTitle(client: DynamoDBDocumentClient, table_name: string, title: string): Promise<FeatherDocumentEntry | null>
+    {
+        
+        const params = {
+            TableName: table_name,
+            IndexName: "title_index",
+            //use begins with to match the title
+            KeyConditionExpression: "title = :title",
+            ExpressionAttributeValues: {
+                ":title": { S: title }
+            }
+        };
+        
+        try {
+            const data = await client.send(new QueryCommand(params));
+            if(data.Items === undefined) return null;
+            return data.Items[0] as FeatherDocumentEntry;
+        } catch (error) {
+            console.error("Error getting document by title:", error);
+        }
+
+        return null;
+    }
     
 }
