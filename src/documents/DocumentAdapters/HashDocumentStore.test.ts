@@ -21,7 +21,7 @@ describe('HashDocumentStore', () => {
         const first_doc = await store.get("01857a13-dc00-7b19-86a7-ba83ceee585e");
 
         expect(first_doc).toBeDefined();
-        expect(first_doc?.id).toEqual(first_doc_uuid_bytes);
+        expect(first_doc?.id).toEqual(stringified_uuid);
         expect(first_doc?.title).toEqual(first_doc_raw.title);
         expect(first_doc?.text).toEqual(first_doc_raw.text);
         expect(first_doc?.published).toEqual(first_doc_raw.published);
@@ -46,15 +46,53 @@ describe('HashDocumentStore', () => {
     }, 10000);
 
     test('delete', async () => {
-        // Test the delete functionality
+        const docs = test_docs as IngestionDocument[];
+
+        const store = await HashDocumentStore.from(docs, "test_index");
+
+        const first_doc_raw = docs[0];
+        const first_doc_uuid = first_doc_raw.uuidv7;
+        const first_doc_uuid_bytes = parse(first_doc_uuid);
+
+        const first_doc = await store.get("01857a13-dc00-7b19-86a7-ba83ceee585e");
+        expect(first_doc).toBeDefined();
+
+        await store.delete([first_doc_uuid_bytes]);
+
+        const deleted_doc = await store.get("01857a13-dc00-7b19-86a7-ba83ceee585e");
+        expect(deleted_doc).toBeUndefined();
     }, 10000);
 
     test('document_exists', async () => {
-        // Test the document_exists functionality
+        const docs = test_docs as IngestionDocument[];
+
+        const store = await HashDocumentStore.from(docs, "test_index");
+
+        const first_doc_raw = docs[0];
+        const first_doc_uuid = first_doc_raw.uuidv7;
+        const first_doc_uuid_bytes = parse(first_doc_uuid);
+
+        const exists = await store.document_exists([first_doc_raw]);
+        expect(exists.length).toBe(1);
+        expect(exists[0]).toBeDefined();
+        expect(exists[0]?.id).toEqual(first_doc_uuid_bytes);
     }, 10000);
 
     test('get', async () => {
-        // Test the get functionality
+        const docs = test_docs as IngestionDocument[];
+
+        const store = await HashDocumentStore.from(docs, "test_index");
+
+        const first_doc_raw = docs[0];
+        const first_doc_uuid = first_doc_raw.uuidv7;
+        const first_doc_uuid_bytes = parse(first_doc_uuid);
+
+        const first_doc = await store.get("01857a13-dc00-7b19-86a7-ba83ceee585e");
+        expect(first_doc).toBeDefined();
+        expect(first_doc?.id).toEqual("01857a13-dc00-7b19-86a7-ba83ceee585e");
+        expect(first_doc?.title).toEqual(first_doc_raw.title);
+        expect(first_doc?.text).toEqual(first_doc_raw.text);
+        expect(first_doc?.published).toEqual(first_doc_raw.published);
     }, 10000);
 
 }); // end of describe block

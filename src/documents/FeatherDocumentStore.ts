@@ -15,7 +15,7 @@ export abstract class FeatherDocumentStore
     MAX_CONCURRENT = 4;
 
     COMPRESSION_OPTIONS : IBrotliCompressOptions = {
-        quality: 11,
+        quality: 4, // 0-11, 11 is the best compression but slowest, 4 was discovered by cloudflare to be the best tradeoff between speed and compression
     } 
 
     /**

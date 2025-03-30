@@ -16,11 +16,11 @@ export class HashDocumentStore extends FeatherDocumentStore
 {
 
     //TODO: remove pk from this implementation its unecessary for testing
-    store: { [pk: string]: BTree<string, FeatherDocumentEntry> } = {};
+    store: BTree<string, FeatherDocumentEntry> = new BTree<string, FeatherDocumentEntry>();
     //secondary index for title maps from title to document id
-    title_index: { [pk: string]: BTree<string, string> } = {};
+    title_index: BTree<string, string> = new BTree<string, string>();
     //secondary index for sha maps from sha to document id
-    sha_index: { [pk: string]: BTree<string, string> } = {};
+    sha_index: BTree<string, string> = new BTree<string, string>();
 
     public static async from(documents: IngestionDocument[], indexName: string): Promise<HashDocumentStore> {
         const store = new HashDocumentStore(indexName, false);
@@ -32,9 +32,9 @@ export class HashDocumentStore extends FeatherDocumentStore
         const results: (FeatherDocumentEntry | undefined)[] = [];
         for (const sha of shas) {
             const sha_string = SHAToHexString(new Uint8Array(sha));
-            const entry = this.sha_index[this.indexName].get(sha_string);
+            const entry = this.sha_index.get(sha_string);
             if(entry) {
-                const document = this.store[this.indexName].get(entry);
+                const document = this.store.get(entry);
                 results.push(document);
             }
         }
@@ -43,7 +43,7 @@ export class HashDocumentStore extends FeatherDocumentStore
 
     get_document_by_uuid(uuid: Uint8Array): Promise<FeatherDocumentEntry | undefined> {
         const uuid_string = stringify(uuid);
-        const entry = this.store[this.indexName].get(uuid_string);
+        const entry = this.store.get(uuid_string);
         return Promise.resolve(entry);
     }
 
@@ -51,16 +51,15 @@ export class HashDocumentStore extends FeatherDocumentStore
         //search for titles that begin with or equal the given title
         //eg. title:"fran" should match "franchise tax"
         const results: FeatherDocumentEntry[] = [];
-        const title_index = this.title_index[this.indexName];
         const title_key = title.toLowerCase();
 
 
         //get the next highest key while the key still begins with the title
-        for (let p of this.title_index[this.indexName].entries(title_key)) {
+        for (let p of this.title_index.entries(title_key)) {
             //if the key does not begin with the title then break
             if(!p[0].startsWith(title_key)) break;
 
-            const entry = this.store[this.indexName].get(p[1]);
+            const entry = this.store.get(p[1]);
             if(entry) {
                 results.push(entry);
             }
@@ -91,28 +90,16 @@ export class HashDocumentStore extends FeatherDocumentStore
 
     insert_into_store(entry: FeatherDocumentEntry): void {
         const uuid = stringify(entry.id);
-        if(!this.store[this.indexName]) {
-            this.store[this.indexName] = new BTree<string, FeatherDocumentEntry>();
-        }
-
-        if(!this.title_index[this.indexName]) {
-            this.title_index[this.indexName] = new BTree<string, string>();
-        }
-
-        if(!this.sha_index[this.indexName]) {
-            this.sha_index[this.indexName] = new BTree<string, string>();
-        }
-
-        this.store[this.indexName].set(uuid, entry);
-        if(entry.t) this.title_index[this.indexName].set(entry.t.toLowerCase(), uuid);
+        this.store.set(uuid, entry);
+        if(entry.t) this.title_index.set(entry.t.toLowerCase(), uuid);
         const sha_string = SHAToHexString(entry.sha);
-        this.sha_index[this.indexName].set(sha_string, uuid);
+        this.sha_index.set(sha_string, uuid);
     }
 
     delete_from_store(id: Uint8Array): void {
         const uuid = stringify(id);
-        if(this.store[this.indexName]) {
-            this.store[this.indexName].delete(uuid);
+        if(this.store) {
+            this.store.delete(uuid);
         }
     }
 }

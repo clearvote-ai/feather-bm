@@ -7,13 +7,13 @@ import { IngestionDocument } from "../../documents/FeatherDocumentStore.d";
 export class HashIndex extends FeatherBMIndex
 {
 
-    index: { [pk: string]: BTree<string, TermFrequencyEntry | InverseDocumentFrequencyEntry> } = {};
+    index: { [pk: string]: BTree<string, TermFrequencyEntry | InverseDocumentFrequencyEntry> } = {}
     global_entry : GlobalStatisticsEntry = { 
         pk: `${this.indexName}#global_stats`, 
         id: UUID_000, 
         totalDocumentLength: this.getAverageDocumentLength(), 
         documentCount: this.documentCount 
-    };
+    }
 
     constructor(indexName: string, averageDocumentLength: number, documentCount: number)
     {
