@@ -16,11 +16,11 @@ export class DynamoDBDocumentStore extends FeatherDocumentStore
         this.client = client;
     }
 
-    get_document_by_sha(shas: ArrayBuffer[]): Promise<(FeatherDocumentEntry | null)[]> {
+    get_document_by_sha(shas: ArrayBuffer[]): Promise<(FeatherDocumentEntry | undefined)[]> {
         return Promise.all(shas.map(sha => this.getDocumentBySHA(this.client, this.tableName, sha)));
     }
 
-    get_document_by_uuid(uuid: Uint8Array): Promise<FeatherDocumentEntry | null> {
+    get_document_by_uuid(uuid: Uint8Array): Promise<FeatherDocumentEntry | undefined> {
         return this.getDocumentByUUID(this.client, this.tableName, this.indexName, uuid);
     }
 
@@ -37,7 +37,7 @@ export class DynamoDBDocumentStore extends FeatherDocumentStore
         return await this.deleteDynamoDBEntryBatch(this.client, this.tableName, this.indexName, uuids);
     }
 
-    async getDocumentByUUID(client: DynamoDBDocumentClient, table_name: string, index_name: string, uuid: Uint8Array): Promise<FeatherDocumentEntry | null>
+    async getDocumentByUUID(client: DynamoDBDocumentClient, table_name: string, index_name: string, uuid: Uint8Array): Promise<FeatherDocumentEntry | undefined>
     {
         const params = {
             TableName: table_name,
@@ -49,13 +49,13 @@ export class DynamoDBDocumentStore extends FeatherDocumentStore
         
         try {
             const data = await client.send(new GetCommand(params));
-            if(data.Item === undefined) return null;
+            if(data.Item === undefined) return undefined;
             return data.Item as FeatherDocumentEntry;
         } catch (error) {
             console.error("Error getting document by uuid:", error);
         }
 
-        return null;
+        return undefined;
     }
 
     async deleteDynamoDBEntryBatch(client: DynamoDBDocumentClient, table_name: string, index_name: string, uuids: Uint8Array[]): Promise<Uint8Array[]> 
@@ -123,7 +123,8 @@ export class DynamoDBDocumentStore extends FeatherDocumentStore
         return entries;
     }
 
-    async getDocumentBySHA(client: DynamoDBDocumentClient, table_name: string, sha: ArrayBuffer): Promise<FeatherDocumentEntry | null>
+    //TODO: convert this to a batch call
+    async getDocumentBySHA(client: DynamoDBDocumentClient, table_name: string, sha: ArrayBuffer): Promise<FeatherDocumentEntry | undefined>
     {
         const params = {
             TableName: table_name,
@@ -136,13 +137,13 @@ export class DynamoDBDocumentStore extends FeatherDocumentStore
         
         try {
             const data = await client.send(new QueryCommand(params));
-            if(data.Items === undefined) return null;
+            if(data.Items === undefined) return undefined;
             return data.Items[0] as FeatherDocumentEntry;
         } catch (error) {
             console.error("Error getting document by sha:", error);
         }
 
-        return null;
+        return undefined;
     }
 
     async getDocumentByTitle(client: DynamoDBDocumentClient, table_name: string, title: string): Promise<FeatherDocumentEntry | null>

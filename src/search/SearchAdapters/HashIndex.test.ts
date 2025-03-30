@@ -24,4 +24,20 @@ describe('HashIndex', () => {
         
         console.log("Top Document: ", top_doc);
     }, 10000);
+
+    test('delete', async () => {
+        const docs = test_docs as IngestionDocument[];
+        const index = await HashIndex.from(docs, "test_index");
+
+        const scores = await index.query("franchise tax");
+
+        const scored_docs = scores.map(score => docs.find(doc => doc.uuidv7 === score.id));
+
+        await index.delete(scored_docs as IngestionDocument[]);
+
+        const new_scores = await index.query("franchise tax");
+
+        expect(new_scores.length).toBe(0);
+        
+    }, 10000);
 });

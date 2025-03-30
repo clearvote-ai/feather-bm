@@ -15,7 +15,7 @@ export interface IngestionDocument
 export type FeatherDocument = {
     pk: string, //partition key
     id: string, //sort key UUIDv7
-    sha: Uint8Array, //sha256 hash
+    sha: string, //sha256 hash
     title?: string,
     text: string, 
     published: boolean,
