@@ -25,7 +25,8 @@ export abstract class FeatherBMIndex
     documentCount: number;
 
     //Your adapter must implement these methods to interact with your data store
-    abstract getEntries(token: string) : Promise<{ idf_entry: InverseDocumentFrequencyEntry, tf_entries: TermFrequencyEntry[] }>;
+    abstract getEntries(token: string, max_results?: number) : Promise<{ idf_entry: InverseDocumentFrequencyEntry, tf_entries: TermFrequencyEntry[] }>;
+    abstract getEntriesGlobal(token: string, max_results?: number) : Promise<{ idf_entry: InverseDocumentFrequencyEntry, tf_entries: TermFrequencyEntry[] }>;
     
     abstract update_global_entry_internal(global_stats: GlobalStatisticsEntry) : Promise<void>;
     abstract insert_internal(tf_entries: TermFrequencyEntry[], idf_entries:InverseDocumentFrequencyEntry[]) : Promise<void>;
@@ -96,7 +97,7 @@ export abstract class FeatherBMIndex
     }
 
     //compute the BM25 scores for every relevant document in our inverted index for a given query CONCURRENTLY
-    async query(query: string) : Promise<BM25Score[]> { 
+    async query(query: string, global: boolean = false, max_results?: number) : Promise<BM25Score[]> { 
         const query_tokens = expandQueryToTokens(query);
 
         //split the query into tokens and get the BM25 scores for each token concurrently
@@ -107,7 +108,7 @@ export abstract class FeatherBMIndex
         .handleError(async (error, token, pool) => {
             console.error("Error processing token index lookup", { error });
         })
-        .process(async (token, index, pool) => await this.queryToken(token));
+        .process(async (token, index, pool) => await this.queryToken(token, global, max_results));
         
         if(!results) throw new Error("No scores found for query");
 
@@ -121,16 +122,16 @@ export abstract class FeatherBMIndex
         }, [] as BM25Score[]);
 
         //return the sorted list of documents by score
-        return scores.sort((a, b) => b.score - a.score);
+        return scores.sort((a, b) => b.score - a.score).slice(0, max_results);
     }
 
     //query the inverted index for a single token and compute the BM25 scores for all documents that contain that token
     //this is called by the query function above for each token in the query
     //it returns an array of BM25 scores for each document that contains the token
-    async queryToken(token: string) : Promise<BM25Score[]> {
-        const averageDocumentLength = await this.getAverageDocumentLength();
+    private async queryToken(token: string, global: boolean, max_results?: number) : Promise<BM25Score[]> {
+        const averageDocumentLength = this.getAverageDocumentLength();
 
-        const { idf_entry, tf_entries } = await this.getEntries(token);
+        const { idf_entry, tf_entries } = global ? await this.getEntriesGlobal(token, max_results) : await this.getEntries(token, max_results) 
         // Token not found in inverted index
         if(tf_entries === undefined || tf_entries === null || tf_entries.length === 0) return [];
 
