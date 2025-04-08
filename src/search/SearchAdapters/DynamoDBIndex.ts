@@ -5,6 +5,10 @@ import { FeatherBMIndex, UUID_000 } from "../FeatherBMIndex";
 export const DYNAMO_DB_MAX_BATCH_SIZE = 25;
 export class DynamoDBIndex extends FeatherBMIndex
 {
+    getEntriesGlobal(token: string, max_results?: number): Promise<{ idf_entry: InverseDocumentFrequencyEntry; tf_entries: TermFrequencyEntry[]; }> {
+        throw new Error("Method not implemented.");
+    }
+    
     client: DynamoDBDocumentClient;
     tableName: string;
     
@@ -15,7 +19,7 @@ export class DynamoDBIndex extends FeatherBMIndex
         this.client = client;
     }
 
-    async getEntries(token: string): Promise<{ idf_entry: InverseDocumentFrequencyEntry; tf_entries: TermFrequencyEntry[]; }> {
+    async getEntries(token: string, max_results?: number): Promise<{ idf_entry: InverseDocumentFrequencyEntry; tf_entries: TermFrequencyEntry[]; }> {
         try {
             const idf_entry = await this.getInverseDocumentFrequencyEntry(token);
             const tf_entries = await this.getTermFrequencyEntries(token);

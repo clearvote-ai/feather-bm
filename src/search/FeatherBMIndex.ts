@@ -1,7 +1,6 @@
 import { BM25Score, GlobalStatisticsEntry, IndexEntry, InverseDocumentFrequencyEntry, TermFrequencyEntry } from "./FeatherBMIndex.d";
 import { expandQueryToTokens } from "./NLPUtils";
 import PromisePool from "@supercharge/promise-pool";
-import { pack_tf_binary, unpack_tf_binary } from "./BinaryUtils";
 import { parse, stringify } from "uuid";
 import { IngestionDocument } from "../documents/FeatherDocumentStore.d";
 
@@ -18,6 +17,7 @@ export abstract class FeatherBMIndex
     //Want to understand the significance of the params below?: https://www.youtube.com/watch?v=ruBm9WywevM
     K1 = 1.2;
     B = 0.75;
+    DEFAULT_AVERAGE_DOCUMENT_LENGTH = 400; //default average document length
 
     indexName: string;
     //the count in tokens of all documents added to the index
@@ -43,7 +43,11 @@ export abstract class FeatherBMIndex
     }
 
     getAverageDocumentLength(): number {
-        return this.totalDocumentLength / this.documentCount;
+        const averageDocumentLength = this.totalDocumentLength / this.documentCount;
+        if (isNaN(averageDocumentLength)) {
+            return this.DEFAULT_AVERAGE_DOCUMENT_LENGTH;
+        }
+        return Math.max(this.totalDocumentLength / this.documentCount, this.DEFAULT_AVERAGE_DOCUMENT_LENGTH); //default to 400 if no documents
     }
 
     async updateGlobalEntry(global_stats: GlobalStatisticsEntry, insert: boolean) : Promise<void> {
@@ -129,7 +133,7 @@ export abstract class FeatherBMIndex
     //this is called by the query function above for each token in the query
     //it returns an array of BM25 scores for each document that contains the token
     private async queryToken(token: string, global: boolean, max_results?: number) : Promise<BM25Score[]> {
-        const averageDocumentLength = this.getAverageDocumentLength();
+        //const averageDocumentLength = this.getAverageDocumentLength();
 
         const { idf_entry, tf_entries } = global ? await this.getEntriesGlobal(token, max_results) : await this.getEntries(token, max_results) 
         // Token not found in inverted index
@@ -141,9 +145,9 @@ export abstract class FeatherBMIndex
         
         //compute the BM25 score for each document in the inverted index for this token
         const scores : BM25Score[] = tf_entries.map(entry => {
-            const { tf, len } = unpack_tf_binary(entry.tf);
+            const tf_indexed = entry.tf;
             const uuid = stringify(entry.id);
-            const score = this.bm25(idf_entry.idf, tf, len, averageDocumentLength);
+            const score = tf_indexed * idf_entry.idf;
             return { id: uuid, score: score };
         });
 
@@ -159,6 +163,13 @@ export abstract class FeatherBMIndex
         );
     }
 
+    bm25Static(termFrequency: number, documentLength: number, averageDocumentLength: number) : number
+    {
+        return (
+            (termFrequency * (this.K1 + 1)) / (termFrequency + this.K1 * (1 - this.B + (this.B * documentLength) / averageDocumentLength))
+        );
+    }
+
     //the function that actually builds the inverted index entries for a set of documents
     computeInvertedEndexEntries(documents: IngestionDocument[])
     {
@@ -169,6 +180,7 @@ export abstract class FeatherBMIndex
 
         const invertedIndexIDFEntries : { [token: string] : Set<string> } = {};
         var totalDocumentLength = 0;
+        const averageDocumentLength = this.getAverageDocumentLength();
 
         //TODO: make this a concurrent operation
         for(const doc of documents)
@@ -198,12 +210,12 @@ export abstract class FeatherBMIndex
 
                 const tf = doc_tf_entries[token];
                 const len = token_count;
-                const tf_binary = pack_tf_binary(tf, len);
+                const tf_indexed = this.bm25Static(tf, len, averageDocumentLength);
 
                 const entry : TermFrequencyEntry = {
                     pk: `${this.indexName}#${token}`, //partition key
                     id: id, //sort key UUIDv7
-                    tf: tf_binary //6 byte secondary index sort key
+                    tf: tf_indexed, //term frequency
                 }
 
                 term_frequency_entries.push(entry);

@@ -117,10 +117,7 @@ export class HashIndex extends FeatherBMIndex
 
         //intperpret tf binary is uint32
         //get the first 4 bytes of the tf
-        const tf_bytes = entry.tf.slice(0, 4);
-        const tf_number = Uint8ArrayToUint32(tf_bytes);
-        const tf = Number(tf_number);
-        this.tf_global_index[entry.pk].set(tf, entry);
+        this.tf_global_index[entry.pk].set(entry.tf, entry);
     }
 
     delete_from_index(entry: TermFrequencyEntry | InverseDocumentFrequencyEntry): void {

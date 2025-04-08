@@ -12,7 +12,7 @@ export type IndexPartitionKey = `${IndexID}#${IndexToken}`;
 export type TermFrequencyEntry = {
     pk: IndexPartitionKey, //partition key
     id: Uint8Array, //sort key UUIDv7
-    tf: Uint8Array, //6 byte secondary index sort key:
+    tf: number, //6 byte secondary index sort key:
     // first 2 bytes are term frequency, 16 bit uint
     // next 4 bytes are document len, 32 bit uint
 }

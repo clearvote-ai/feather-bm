@@ -1,7 +1,6 @@
 import { HashIndex } from "./HashIndex";
 import test_docs from "../../test_data/test_docs.json";
 import { IngestionDocument } from "../../documents/FeatherDocumentStore.d";
-import exp from "constants";
 
 describe('HashIndex', () => {
     
@@ -15,7 +14,7 @@ describe('HashIndex', () => {
         const docs = test_docs as IngestionDocument[];
         const index = await HashIndex.from(docs, "test_index");
 
-        const scores = await index.query("franchise tax", false, 40);
+        const scores = await index.query("franchise tax", false, 10);
 
         const top_score = scores[0];
 
@@ -30,7 +29,7 @@ describe('HashIndex', () => {
         const docs = test_docs as IngestionDocument[];
         const index = await HashIndex.from(docs, "test_index");
 
-        const scores = await index.query("franchise tax", true, 40);
+        const scores = await index.query("franchise tax", true, 10);
 
         //expect(scores.length).toBe(10);
 
