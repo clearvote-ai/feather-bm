@@ -14,7 +14,7 @@ describe('HashIndex', () => {
         const docs = test_docs as IngestionDocument[];
         const index = await HashIndex.from(docs, "test_index");
 
-        const scores = await index.query("franchise tax", false, 10);
+        const scores = await index.query("franchise tax", "test_index",false, 100);
 
         const top_score = scores[0];
 
@@ -29,7 +29,7 @@ describe('HashIndex', () => {
         const docs = test_docs as IngestionDocument[];
         const index = await HashIndex.from(docs, "test_index");
 
-        const scores = await index.query("franchise tax", true, 10);
+        const scores = await index.query("franchise tax", "test_index", true, 100);
 
         //expect(scores.length).toBe(10);
 
@@ -46,13 +46,13 @@ describe('HashIndex', () => {
         const docs = test_docs as IngestionDocument[];
         const index = await HashIndex.from(docs, "test_index");
 
-        const scores = await index.query("franchise tax");
+        const scores = await index.query("franchise tax", "test_index");
 
         const scored_docs = scores.map(score => docs.find(doc => doc.uuidv7 === score.id));
 
-        await index.delete(scored_docs as IngestionDocument[]);
+        await index.delete(scored_docs as IngestionDocument[], "test_index");
 
-        const new_scores = await index.query("franchise tax");
+        const new_scores = await index.query("franchise tax", "test_index");
 
         expect(new_scores.length).toBe(0);
         

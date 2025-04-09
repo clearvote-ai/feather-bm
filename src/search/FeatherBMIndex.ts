@@ -19,53 +19,81 @@ export abstract class FeatherBMIndex
     B = 0.75;
     DEFAULT_AVERAGE_DOCUMENT_LENGTH = 400; //default average document length
 
-    indexName: string;
     //the count in tokens of all documents added to the index
-    totalDocumentLength: number;
-    documentCount: number;
+    global_entries : { [indexName: string] : GlobalStatisticsEntry } = {};
 
     //Your adapter must implement these methods to interact with your data store
-    abstract getEntries(token: string, max_results?: number) : Promise<{ idf_entry: InverseDocumentFrequencyEntry, tf_entries: TermFrequencyEntry[] }>;
-    abstract getEntriesGlobal(token: string, max_results?: number) : Promise<{ idf_entry: InverseDocumentFrequencyEntry, tf_entries: TermFrequencyEntry[] }>;
+    abstract getEntries(token: string, indexName: string, max_results?: number) : Promise<{ idf_entry: InverseDocumentFrequencyEntry, tf_entries: TermFrequencyEntry[] }>;
+    abstract getEntriesGlobal(token: string, indexName: string, max_results?: number) : Promise<{ idf_entry: InverseDocumentFrequencyEntry, tf_entries: TermFrequencyEntry[] }>;
     
     abstract update_global_entry_internal(global_stats: GlobalStatisticsEntry) : Promise<void>;
+    abstract get_global_entry_internal(indexName: string) : Promise<GlobalStatisticsEntry>;
     abstract insert_internal(tf_entries: TermFrequencyEntry[], idf_entries:InverseDocumentFrequencyEntry[]) : Promise<void>;
     abstract delete_internal(tf_entries: TermFrequencyEntry[], idf_entries: InverseDocumentFrequencyEntry[]) : Promise<void>;
     
 
-    constructor(indexName: string, totalDocumentLength: number, documentCount: number, K1: number = 1.2, B: number = 0.75)
+    constructor(K1: number = 1.2, B: number = 0.75)
     {
-        this.indexName = indexName;
-        this.totalDocumentLength = totalDocumentLength;
-        this.documentCount = documentCount;
+        //TODO: make an initializer that grabs the global stats entry for each read
         this.K1 = K1;
         this.B = B;
     }
 
-    getAverageDocumentLength(): number {
-        const averageDocumentLength = this.totalDocumentLength / this.documentCount;
+    getAverageDocumentLength(indexName: string): number {
+        const global_stats = this.global_entries[indexName];
+        if(!global_stats) return this.DEFAULT_AVERAGE_DOCUMENT_LENGTH; //default to 400 if no documents
+        const averageDocumentLength = global_stats.totalDocumentLength / global_stats.documentCount;
         if (isNaN(averageDocumentLength)) {
             return this.DEFAULT_AVERAGE_DOCUMENT_LENGTH;
         }
-        return Math.max(this.totalDocumentLength / this.documentCount, this.DEFAULT_AVERAGE_DOCUMENT_LENGTH); //default to 400 if no documents
+        return Math.max(global_stats.totalDocumentLength / global_stats.documentCount, this.DEFAULT_AVERAGE_DOCUMENT_LENGTH); //default to 400 if no documents
     }
 
-    async updateGlobalEntry(global_stats: GlobalStatisticsEntry, insert: boolean) : Promise<void> {
+    private async retrieveGlobalEntry(indexName: string) : Promise<GlobalStatisticsEntry> {
+        //check if we already have the global entry in memory
+        const global_stats_entry = this.global_entries[indexName];
+        if(global_stats_entry) return global_stats_entry;
+        //if not, retrieve it from the data store
+        const global_stats_entry_from_store = await this.get_global_entry_internal(indexName);
+        if(!global_stats_entry_from_store) {
+            //if the entry does not exist, create a new one
+            const new_global_stats_entry : GlobalStatisticsEntry = {
+                pk: `${indexName}#global_stats`, //partition key
+                id: UUID_000, //sort key placeholder for global stats
+                totalDocumentLength: 0,
+                documentCount: 0
+            };
+            //insert the new entry into the data store
+            await this.update_global_entry_internal(new_global_stats_entry);
+            //update the global stats entry in memory
+            this.global_entries[indexName] = new_global_stats_entry;
+            return new_global_stats_entry;
+        }
+        //update the global stats entry in memory
+        this.global_entries[indexName] = global_stats_entry_from_store;
+        return global_stats_entry_from_store;
+    }
+
+    async updateGlobalEntry(global_stats: GlobalStatisticsEntry, insert: boolean, indexName: string) : Promise<void> {
         
-        const new_document_count = insert ? this.documentCount + global_stats.documentCount : this.documentCount - global_stats.documentCount;
-        const new_total_document_length = insert ? this.totalDocumentLength + global_stats.totalDocumentLength : this.totalDocumentLength - global_stats.totalDocumentLength;
+        const global_stats_entry = this.global_entries[indexName];
+        var documentCount = global_stats_entry.documentCount;
+        var totalDocumentLength = global_stats_entry.totalDocumentLength;
+        if(!global_stats_entry) throw new Error("Global stats entry not found");
+
+        const new_document_count = insert ? documentCount + global_stats.documentCount : documentCount - global_stats.documentCount;
+        const new_total_document_length = insert ? totalDocumentLength + global_stats.totalDocumentLength : totalDocumentLength - global_stats.totalDocumentLength;
         if(new_document_count <= 0) throw new Error("Document count cannot be less than 0");
         if(new_total_document_length <= 0) throw new Error("Total document length cannot be less than 0");
         const new_global_stats_entry : GlobalStatisticsEntry = {
-            pk: `${this.indexName}#global_stats`, //partition key
+            pk: `${indexName}#global_stats`, //partition key
             id: UUID_000, //sort key placeholder for global stats
             totalDocumentLength: new_total_document_length,
             documentCount: new_document_count
         };
 
-        //update the internal state of the index
-        this.documentCount = new_document_count;
-        this.totalDocumentLength = new_total_document_length;
+        //update the global stats entry in memory
+        this.global_entries[indexName] = new_global_stats_entry;
 
         //Adapter is responsible for updating the global stats entry in the data store
         await this.update_global_entry_internal(new_global_stats_entry);
@@ -75,33 +103,37 @@ export abstract class FeatherBMIndex
     //NOTE: you should ensure the documents are NOT already in the index before calling insert
     //calling insert here will overwrite any existing documents with the same id but it might result in undefined index behavior
     //if you inserted 2 different versions of the same document with the same UUID then the index will keep both versions which you may not want
-    async insert(documents: IngestionDocument[] | IngestionDocument) : Promise<void>{
+    async insert(documents: IngestionDocument[] | IngestionDocument, indexName: string) : Promise<void>{
         if(!Array.isArray(documents)) documents = [documents]; //ensure we have an array of documents
         if(documents.length === 0) return; //nothing to insert
-        const { global_stats_entry, idf_entries, tf_entries } = this.computeInvertedEndexEntries(documents);
+
+        await this.retrieveGlobalEntry(indexName); //get the global stats entry for this index
+        const { global_stats_entry, idf_entries, tf_entries } = this.computeInvertedEndexEntries(documents, indexName);
 
         //Adapter is responsible for inserting the entries into the data store
         await this.insert_internal(tf_entries, idf_entries);
 
         //update the global stats entry in the data store
-        await this.updateGlobalEntry(global_stats_entry, true); //true = insert
+        await this.updateGlobalEntry(global_stats_entry, true, indexName); //true = insert
     }
 
     //NOTE: you should ensure the documents are already in the index before calling delete
-    async delete(documents: IngestionDocument[] | IngestionDocument ) : Promise<void> {
+    async delete(documents: IngestionDocument[] | IngestionDocument, indexName: string) : Promise<void> {
+        await this.retrieveGlobalEntry(indexName); //get the global stats entry for this index
         if(!Array.isArray(documents)) documents = [documents]; //ensure we have an array of documents
         if(documents.length === 0) return; //nothing to delete
-        const { global_stats_entry, idf_entries, tf_entries } = this.computeInvertedEndexEntries(documents);
+        const { global_stats_entry, idf_entries, tf_entries } = this.computeInvertedEndexEntries(documents, indexName);
 
         //Adapter is responsible for deleting the entries from the data store
         await this.delete_internal(tf_entries, idf_entries);
 
         //update the global stats entry in the data store
-        await this.updateGlobalEntry(global_stats_entry, false); //false = delete
+        await this.updateGlobalEntry(global_stats_entry, false, indexName); //false = delete
     }
 
     //compute the BM25 scores for every relevant document in our inverted index for a given query CONCURRENTLY
-    async query(query: string, global: boolean = false, max_results?: number) : Promise<BM25Score[]> { 
+    async query(query: string, indexName: string, global: boolean = false, max_results?: number) : Promise<BM25Score[]> { 
+        await this.retrieveGlobalEntry(indexName); //get the global stats entry for this index
         const query_tokens = expandQueryToTokens(query);
 
         //split the query into tokens and get the BM25 scores for each token concurrently
@@ -112,7 +144,7 @@ export abstract class FeatherBMIndex
         .handleError(async (error, token, pool) => {
             console.error("Error processing token index lookup", { error });
         })
-        .process(async (token, index, pool) => await this.queryToken(token, global, max_results));
+        .process(async (token, index, pool) => await this.queryToken(token, indexName, global, max_results));
         
         if(!results) throw new Error("No scores found for query");
 
@@ -132,10 +164,9 @@ export abstract class FeatherBMIndex
     //query the inverted index for a single token and compute the BM25 scores for all documents that contain that token
     //this is called by the query function above for each token in the query
     //it returns an array of BM25 scores for each document that contains the token
-    private async queryToken(token: string, global: boolean, max_results?: number) : Promise<BM25Score[]> {
-        //const averageDocumentLength = this.getAverageDocumentLength();
+    private async queryToken(token: string, indexName: string, global: boolean, max_results?: number) : Promise<BM25Score[]> {
 
-        const { idf_entry, tf_entries } = global ? await this.getEntriesGlobal(token, max_results) : await this.getEntries(token, max_results) 
+        const { idf_entry, tf_entries } = global ? await this.getEntriesGlobal(token, indexName, max_results) : await this.getEntries(token, indexName, max_results) 
         // Token not found in inverted index
         if(tf_entries === undefined || tf_entries === null || tf_entries.length === 0) return [];
 
@@ -171,7 +202,7 @@ export abstract class FeatherBMIndex
     }
 
     //the function that actually builds the inverted index entries for a set of documents
-    computeInvertedEndexEntries(documents: IngestionDocument[])
+    computeInvertedEndexEntries(documents: IngestionDocument[], indexName: string)
     {
         const term_frequency_entries : TermFrequencyEntry[] = [];
         const idf_entries : InverseDocumentFrequencyEntry[] = [];
@@ -180,7 +211,7 @@ export abstract class FeatherBMIndex
 
         const invertedIndexIDFEntries : { [token: string] : Set<string> } = {};
         var totalDocumentLength = 0;
-        const averageDocumentLength = this.getAverageDocumentLength();
+        const averageDocumentLength = this.getAverageDocumentLength(indexName);
 
         //TODO: make this a concurrent operation
         for(const doc of documents)
@@ -213,7 +244,7 @@ export abstract class FeatherBMIndex
                 const tf_indexed = this.bm25Static(tf, len, averageDocumentLength);
 
                 const entry : TermFrequencyEntry = {
-                    pk: `${this.indexName}#${token}`, //partition key
+                    pk: `${indexName}#${token}`, //partition key
                     id: id, //sort key UUIDv7
                     tf: tf_indexed, //term frequency
                 }
@@ -228,7 +259,7 @@ export abstract class FeatherBMIndex
             const idf = invertedIndexIDFEntries[token].size;
             const id = UUID_000; //placeholder for the IDF entry sort key
             const idf_entry : IndexEntry = {
-                pk: `${this.indexName}#${token}`, //partition key
+                pk: `${indexName}#${token}`, //partition key
                 id: id, //sort key placeholder for idf
                 idf: idf //inverse document frequency
             }
@@ -236,7 +267,7 @@ export abstract class FeatherBMIndex
         }
 
         const global_stats_entry : GlobalStatisticsEntry = {
-            pk: `${this.indexName}#global_stats`, //partition key
+            pk: `${indexName}#global_stats`, //partition key
             id: UUID_000, //sort key placeholder for global stats
             totalDocumentLength: totalDocumentLength,
             documentCount: documents.length

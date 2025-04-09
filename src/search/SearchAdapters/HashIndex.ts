@@ -6,34 +6,20 @@ import { IngestionDocument } from "../../documents/FeatherDocumentStore.d";
 
 export class HashIndex extends FeatherBMIndex
 {
+    
+    index: { [pk: string]: BTree<string, TermFrequencyEntry | InverseDocumentFrequencyEntry> } = {}
+    tf_global_index : { [pk: string]: BTree<number, TermFrequencyEntry> } = {}
 
-    index: { [pk: string]: BTree<string, TermFrequencyEntry | InverseDocumentFrequencyEntry> } = {
-        [this.indexName] : new BTree<string, TermFrequencyEntry | InverseDocumentFrequencyEntry>()
-    }
-    tf_global_index : { [pk: string]: BTree<number, TermFrequencyEntry> } = {
-        [this.indexName] : new BTree<number, TermFrequencyEntry>()
-    }
+    global_entry_store: { [pk: string]: GlobalStatisticsEntry } = {}
 
-    global_entry : GlobalStatisticsEntry = { 
-        pk: `${this.indexName}#global_stats`, 
-        id: UUID_000, 
-        totalDocumentLength: this.getAverageDocumentLength(), 
-        documentCount: this.documentCount 
-    }
-
-    constructor(indexName: string, averageDocumentLength: number, documentCount: number)
-    {
-        super(indexName, averageDocumentLength, documentCount);
-    }
-
-    static async from(docs: IngestionDocument[], index_name: string = "test_index"): Promise<HashIndex> {
-        const index = new HashIndex(index_name, 0, 0);
-        await index.insert(docs);
+    static async from(docs: IngestionDocument[], index_name: string): Promise<HashIndex> {
+        const index = new HashIndex();
+        await index.insert(docs, index_name);
         return index;
     }
 
-    getEntries(token: string, max_results?: number): Promise<{ idf_entry: InverseDocumentFrequencyEntry; tf_entries: TermFrequencyEntry[]; }> {
-        const pk = `${this.indexName}#${token}`;
+    getEntries(token: string, indexName: string, max_results?: number): Promise<{ idf_entry: InverseDocumentFrequencyEntry; tf_entries: TermFrequencyEntry[]; }> {
+        const pk = `${indexName}#${token}`;
         const idf = this.index[pk].get(stringify(UUID_000)) as InverseDocumentFrequencyEntry;
 
 
@@ -46,8 +32,8 @@ export class HashIndex extends FeatherBMIndex
         return Promise.resolve({ idf_entry: idf, tf_entries: tf_array });
     }
 
-    getEntriesGlobal(token: string, max_results?: number): Promise<{ idf_entry: InverseDocumentFrequencyEntry; tf_entries: TermFrequencyEntry[]; }> {
-        const pk = `${this.indexName}#${token}`;
+    getEntriesGlobal(token: string, indexName: string, max_results?: number): Promise<{ idf_entry: InverseDocumentFrequencyEntry; tf_entries: TermFrequencyEntry[]; }> {
+        const pk = `${indexName}#${token}`;
         const idf = this.index[pk].get(stringify(UUID_000)) as InverseDocumentFrequencyEntry;
 
         //collect the first max_results entries
@@ -65,8 +51,14 @@ export class HashIndex extends FeatherBMIndex
     }
 
     update_global_entry_internal(global_stats: GlobalStatisticsEntry): Promise<void> {
-        this.global_entry = global_stats;
+        this.global_entry_store[global_stats.pk] = global_stats;
         return Promise.resolve()
+    }
+
+    get_global_entry_internal(indexName: string): Promise<GlobalStatisticsEntry> {
+        const pk = `${indexName}#global_stats`;
+        const entry = this.global_entry_store[pk];
+        return Promise.resolve(entry);
     }
 
     insert_internal(tf_entries: TermFrequencyEntry[], idf_entries: InverseDocumentFrequencyEntry[]): Promise<void> {

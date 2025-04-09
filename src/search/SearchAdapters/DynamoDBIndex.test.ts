@@ -38,17 +38,17 @@ describe('DynamoDB', () => {
         const docs = test_docs as IngestionDocument[];
 
         const client = DynamoDBDocumentClient.from(local_dynamo_client);
-        const index = await DynamoDBIndex.from(client, "FeatherIndex", "test_index");
+        const index = await DynamoDBIndex.from(client, "FeatherIndex");
 
-        await index.insert(docs);
+        await index.insert(docs, "test_index");
     }, 1000000);
 
 
     test('query', async () => {
         const client = DynamoDBDocumentClient.from(local_dynamo_client);
-        const index = await DynamoDBIndex.from(client, "FeatherIndex", "test_index");
+        const index = await DynamoDBIndex.from(client, "FeatherIndex");
 
-        const scores = await index.query("franchise tax");
+        const scores = await index.query("franchise tax","test_index");
 
         const top_score = scores[0];
 
@@ -65,17 +65,17 @@ describe('DynamoDB', () => {
 
     test('delete', async () => {
         const client = DynamoDBDocumentClient.from(local_dynamo_client);
-        const index = await DynamoDBIndex.from(client, "FeatherIndex", "test_index");
+        const index = await DynamoDBIndex.from(client, "FeatherIndex");
 
-        const scores = await index.query("franchise tax");
+        const scores = await index.query("franchise tax","test_index");
 
         const full_docs = test_docs as IngestionDocument[];
 
         const scored_docs = scores.map(score => full_docs.find(doc => doc.uuidv7 === score.id));
 
-        await index.delete(scored_docs as IngestionDocument[]);
+        await index.delete(scored_docs as IngestionDocument[], "test_index");
 
-        const new_scores = await index.query("franchise tax");
+        const new_scores = await index.query("franchise tax","test_index");
 
         expect(new_scores.length).toBe(0);
         
