@@ -118,26 +118,3 @@ export class HashIndex extends FeatherBMIndex
     }
 
 }
-
-function Uint8ArrayToUint32(array: Uint8Array): number {
-    if (array.length !== 4) {
-        //pad the array to 4 bytes
-        const paddedArray = new Uint8Array(4);
-        paddedArray.set(array);
-        array = paddedArray;
-    }
-    const dataView = new DataView(array.buffer, array.byteOffset, array.byteLength);
-    return dataView.getUint32(0, true); // true for little-endian, false for big-endian
-}
-
-function uint8ArrayToUint64(array: Uint8Array): bigint {
-    if (array.length !== 8) {
-        //pad the array to 8 bytes
-        const paddedArray = new Uint8Array(8);
-        paddedArray.set(array);
-        array = paddedArray;
-    }
-  
-    const dataView = new DataView(array.buffer, array.byteOffset, array.byteLength);
-    return dataView.getBigUint64(0, true); // true for little-endian, false for big-endian
-}

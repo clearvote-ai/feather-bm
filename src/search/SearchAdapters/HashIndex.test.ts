@@ -29,7 +29,7 @@ describe('HashIndex', () => {
         const docs = test_docs as IngestionDocument[];
         const index = await HashIndex.from(docs, "test_index");
 
-        const scores = await index.query("franchise tax", "test_index", true, 100);
+        const scores = await index.query("franchise tax", "test_index", true, 10);
 
         //expect(scores.length).toBe(10);
 

@@ -27,11 +27,25 @@ describe('DynamoDB', () => {
             ],
             AttributeDefinitions: [
                 { AttributeName: "pk", AttributeType: "S" },
-                { AttributeName: "id", AttributeType: "B" }
+                { AttributeName: "id", AttributeType: "B" },
+                { AttributeName: "tf", AttributeType: "N" }
+            ],
+            GlobalSecondaryIndexes: [
+                {
+                    IndexName: "GlobalIndex",
+                    KeySchema: [
+                        { AttributeName: "pk", KeyType: "HASH" },
+                        { AttributeName: "tf", KeyType: "RANGE" }
+                    ],
+                    Projection: {
+                        ProjectionType: "ALL"
+                    },
+                }
             ],
             //TODO: swap billing mode and test with provisioned and retries
             BillingMode: "PAY_PER_REQUEST"
         }));
+        
     });
 
     test('insert', async () => {
@@ -44,11 +58,11 @@ describe('DynamoDB', () => {
     }, 1000000);
 
 
-    test('query', async () => {
+    test('local_query', async () => {
         const client = DynamoDBDocumentClient.from(local_dynamo_client);
         const index = await DynamoDBIndex.from(client, "FeatherIndex");
 
-        const scores = await index.query("franchise tax","test_index");
+        const scores = await index.query("franchise tax","test_index", false, 100);
 
         const top_score = scores[0];
 
@@ -58,7 +72,26 @@ describe('DynamoDB', () => {
 
         const top_doc = docs.find(doc => doc.uuidv7 === top_score.id);
 
-        
+        console.log("Top Document: ", top_doc);
+
+    }, 100000);
+
+    test('global_query', async () => {
+        const client = DynamoDBDocumentClient.from(local_dynamo_client);
+        const index = await DynamoDBIndex.from(client, "FeatherIndex");
+
+        const scores = await index.query("franchise tax","test_index", true, 10);
+
+        //expect(scores.length).toBe(10);
+
+        const top_score = scores[0];
+
+        console.log("Top Score: ", top_score);
+
+        const docs = test_docs as IngestionDocument[];
+
+        const top_doc = docs.find(doc => doc.uuidv7 === top_score.id);
+
         console.log("Top Document: ", top_doc);
 
     }, 100000);

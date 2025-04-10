@@ -17,7 +17,7 @@ export abstract class FeatherBMIndex
     //Want to understand the significance of the params below?: https://www.youtube.com/watch?v=ruBm9WywevM
     K1 = 1.2;
     B = 0.75;
-    DEFAULT_AVERAGE_DOCUMENT_LENGTH = 400; //default average document length
+    DEFAULT_AVERAGE_DOCUMENT_LENGTH = 400; //default average document length aka the MIN average document length
 
     //the count in tokens of all documents added to the index
     global_entries : { [indexName: string] : GlobalStatisticsEntry } = {};
@@ -27,7 +27,7 @@ export abstract class FeatherBMIndex
     abstract getEntriesGlobal(token: string, indexName: string, max_results?: number) : Promise<{ idf_entry: InverseDocumentFrequencyEntry, tf_entries: TermFrequencyEntry[] }>;
     
     abstract update_global_entry_internal(global_stats: GlobalStatisticsEntry) : Promise<void>;
-    abstract get_global_entry_internal(indexName: string) : Promise<GlobalStatisticsEntry>;
+    abstract get_global_entry_internal(indexName: string) : Promise<GlobalStatisticsEntry | undefined>;
     abstract insert_internal(tf_entries: TermFrequencyEntry[], idf_entries:InverseDocumentFrequencyEntry[]) : Promise<void>;
     abstract delete_internal(tf_entries: TermFrequencyEntry[], idf_entries: InverseDocumentFrequencyEntry[]) : Promise<void>;
     
@@ -174,11 +174,14 @@ export abstract class FeatherBMIndex
         //IDF Entry is the first entry in the list
         if(idf_entry === undefined || idf_entry.idf === undefined || idf_entry.id !== UUID_000) throw new Error(`No IDF entry found for token: ${token}`);
         
+        //IDF(t) = log(N / df(t))
+        const log_idf = Math.log(this.global_entries[indexName].documentCount / idf_entry.idf);
+
         //compute the BM25 score for each document in the inverted index for this token
         const scores : BM25Score[] = tf_entries.map(entry => {
             const tf_indexed = entry.tf;
             const uuid = stringify(entry.id);
-            const score = tf_indexed * idf_entry.idf;
+            const score = tf_indexed * log_idf;
             return { id: uuid, score: score };
         });
 
