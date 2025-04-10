@@ -24,6 +24,7 @@ export type FeatherDocument = {
 //NOTE: This is the type that is actually stored in the data store
 //Entry has shorter field names to save space
 export type FeatherDocumentEntry = {
+    pk: string, //partition key
     id: Uint8Array, //sort key UUIDv7
     sha: Uint8Array, //sha256 hash
     t?: string, //title

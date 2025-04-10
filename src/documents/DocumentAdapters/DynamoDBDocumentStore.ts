@@ -9,22 +9,22 @@ export class DynamoDBDocumentStore extends FeatherDocumentStore
     client: DynamoDBDocumentClient;
     tableName: string;
         
-    constructor(client: DynamoDBDocumentClient, tableName: string, indexName: string)
+    constructor(client: DynamoDBDocumentClient, tableName: string, enableCompression: boolean = true)
     {
-        super(indexName);
+        super(enableCompression);
         this.tableName = tableName;
         this.client = client;
     }
 
-    get_document_by_sha(shas: ArrayBuffer[]): Promise<(FeatherDocumentEntry | undefined)[]> {
-        return Promise.all(shas.map(sha => this.getDocumentBySHA(this.client, this.tableName, sha)));
+    get_document_by_sha(shas: ArrayBuffer[], indexName: string): Promise<(FeatherDocumentEntry | undefined)[]> {
+        return Promise.all(shas.map(sha => this.getDocumentBySHA(this.client, this.tableName, indexName, sha)));
     }
 
-    get_document_by_uuid(uuid: Uint8Array): Promise<FeatherDocumentEntry | undefined> {
-        return this.getDocumentByUUID(this.client, this.tableName, this.indexName, uuid);
+    get_document_by_uuid(uuid: Uint8Array, indexName: string): Promise<FeatherDocumentEntry | undefined> {
+        return this.getDocumentByUUID(this.client, this.tableName, indexName, uuid);
     }
 
-    search_by_title(title: string): Promise<FeatherDocumentEntry[]> {
+    search_by_title(title: string, indexName: string): Promise<FeatherDocumentEntry[]> {
         throw new Error("Method not implemented.");
     }
 
@@ -33,16 +33,16 @@ export class DynamoDBDocumentStore extends FeatherDocumentStore
         return await this.putDynamoDBDocumentEntryBatch(this.client, this.tableName, documents);
     }
 
-    async delete_internal(uuids: Uint8Array[]): Promise<Uint8Array[]> {
-        return await this.deleteDynamoDBEntryBatch(this.client, this.tableName, this.indexName, uuids);
+    async delete_internal(uuids: Uint8Array[], indexName: string): Promise<Uint8Array[]> {
+        return await this.deleteDynamoDBEntryBatch(this.client, this.tableName, indexName, uuids);
     }
 
-    async getDocumentByUUID(client: DynamoDBDocumentClient, table_name: string, index_name: string, uuid: Uint8Array): Promise<FeatherDocumentEntry | undefined>
+    async getDocumentByUUID(client: DynamoDBDocumentClient, table_name: string, indexName: string, uuid: Uint8Array): Promise<FeatherDocumentEntry | undefined>
     {
         const params = {
             TableName: table_name,
             Key: {
-                pk: index_name,
+                pk: indexName,
                 id: uuid
             }
         };
@@ -58,7 +58,7 @@ export class DynamoDBDocumentStore extends FeatherDocumentStore
         return undefined;
     }
 
-    async deleteDynamoDBEntryBatch(client: DynamoDBDocumentClient, table_name: string, index_name: string, uuids: Uint8Array[]): Promise<Uint8Array[]> 
+    async deleteDynamoDBEntryBatch(client: DynamoDBDocumentClient, table_name: string, indexName: string, uuids: Uint8Array[]): Promise<Uint8Array[]> 
     {
         const entries : Uint8Array[] = [];
 
@@ -68,7 +68,7 @@ export class DynamoDBDocumentStore extends FeatherDocumentStore
             const deleteRequests = batch.map(uuid => ({
                 DeleteRequest: {
                     Key: {
-                        pk: index_name,
+                        pk: indexName,
                         id: uuid,
                     }
                 }
@@ -124,14 +124,17 @@ export class DynamoDBDocumentStore extends FeatherDocumentStore
     }
 
     //TODO: convert this to a batch call
-    async getDocumentBySHA(client: DynamoDBDocumentClient, table_name: string, sha: ArrayBuffer): Promise<FeatherDocumentEntry | undefined>
+    async getDocumentBySHA(client: DynamoDBDocumentClient, table_name: string, indexName: string, sha: ArrayBuffer): Promise<FeatherDocumentEntry | undefined>
     {
+        //sha_index pk is the indexName
+        //and the sha is the sort key
         const params = {
             TableName: table_name,
             IndexName: "sha_index",
-            KeyConditionExpression: "sha = :sha",
+            KeyConditionExpression: "pk = :pk and sha = :sha",
             ExpressionAttributeValues: {
-                ":sha": { B: new Uint8Array(sha) }
+                ":sha": { B: new Uint8Array(sha) },
+                ":pk": { S: indexName }
             }
         };
         

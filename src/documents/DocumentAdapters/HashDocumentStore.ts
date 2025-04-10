@@ -22,9 +22,9 @@ export class HashDocumentStore extends FeatherDocumentStore
     //secondary index for sha maps from sha to document id
     sha_index: BTree<string, string> = new BTree<string, string>();
 
-    public static async from(documents: IngestionDocument[], indexName: string): Promise<HashDocumentStore> {
-        const store = new HashDocumentStore(indexName, false);
-        await store.insert(documents);
+    public static async from(documents: IngestionDocument[], indexName: string, enableCompression: boolean = false): Promise<HashDocumentStore> {
+        const store = new HashDocumentStore(enableCompression);
+        await store.insert(documents, indexName);
         return store;
     }
 

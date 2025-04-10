@@ -7,15 +7,16 @@ import { parse, stringify } from "uuid";
 export abstract class FeatherDocumentStore
 {
 
-    /**
-     * The name of the collection in the database.
-     **/
-    public indexName: string;
 
+    //maximum number of concurrent requests to the data store
+    //adjust based on your API limits
     MAX_CONCURRENT = 4;
 
     COMPRESSION_OPTIONS : IBrotliCompressOptions = {
-        quality: 4, // 0-11, 11 is the best compression but slowest, 4 was discovered by cloudflare to be the best tradeoff between speed and compression
+        //https://blog.cloudflare.com/results-experimenting-brotli/
+        //4 was discovered by cloudflare to be the best tradeoff between speed and compression
+        //we set 3 because our average document is small, your mileage may vary
+        quality: 3, // 0-11, 11 is the best compression but slowest
     } 
 
     /**
@@ -25,13 +26,12 @@ export abstract class FeatherDocumentStore
      **/
     public enableCompression: boolean = true;
 
-    constructor(indexName: string, enableCompression: boolean = true)
+    constructor(enableCompression: boolean = true)
     {
-        this.indexName = indexName;
         this.enableCompression = enableCompression;
     }
 
-    async insert(documents: IngestionDocument[] | IngestionDocument): Promise<void>
+    async insert(documents: IngestionDocument[] | IngestionDocument, indexName: string): Promise<void>
     {
         // Ensure documents is an array
         if (!Array.isArray(documents)) {
@@ -60,10 +60,10 @@ export abstract class FeatherDocumentStore
         });
 
         //Adapter is responsible for inserting the entries in the data store
-        await this.insert_internal(results);
+        await this.insert_internal(results, indexName);
     }
 
-    async delete(ids: Uint8Array | Uint8Array[]): Promise<void>
+    async delete(ids: Uint8Array | Uint8Array[], indexName: string): Promise<void>
     {
         // Ensure documents is an array
         if (!Array.isArray(ids)) {
@@ -72,11 +72,11 @@ export abstract class FeatherDocumentStore
         if(ids.length === 0) throw new Error("No documents to delete");
 
         //Adapter is responsible for deleting the entries in the data store
-        await this.delete_internal(ids);
+        await this.delete_internal(ids, indexName);
     }
 
 
-    async document_exists(documents: IngestionDocument[] | IngestionDocument): Promise<(FeatherDocumentEntry | undefined)[]>
+    async document_exists(documents: IngestionDocument[] | IngestionDocument, indexName: string): Promise<(FeatherDocumentEntry | undefined)[]>
     {
         // Ensure documents is an array
         if (!Array.isArray(documents)) {
@@ -84,15 +84,15 @@ export abstract class FeatherDocumentStore
         }
         if(documents.length === 0) throw new Error("No documents to compare");
         const shas = documents.map(doc => sha256.arrayBuffer(doc.text));
-        const sha_matches = await this.get_document_by_sha(shas);
+        const sha_matches = await this.get_document_by_sha(shas, indexName);
 
         return sha_matches;
     }
 
-    async get(uuid: string): Promise<FeatherDocument | undefined>
+    async get(uuid: string, indexName: string): Promise<FeatherDocument | undefined>
     {
         const uuidBytes = parse(uuid);
-        const compressed_document = await this.get_document_by_uuid(uuidBytes);
+        const compressed_document = await this.get_document_by_uuid(uuidBytes, indexName);
 
         if(compressed_document === undefined) return undefined;
 
@@ -102,7 +102,7 @@ export abstract class FeatherDocumentStore
         const sha_string = SHAToHexString(compressed_document.sha);
 
         return {
-            pk: this.indexName,
+            pk: indexName,
             id: uuid,
             sha: sha_string,
             title: compressed_document.t,
@@ -112,13 +112,13 @@ export abstract class FeatherDocumentStore
     }
 
     //TODO: Implement DynamoDB Table for DocumentStore
-    abstract get_document_by_sha(shas: ArrayBuffer[]) : Promise<(FeatherDocumentEntry | undefined)[]>;
-    abstract get_document_by_uuid(uuid: Uint8Array) : Promise<FeatherDocumentEntry | undefined>;
+    abstract get_document_by_sha(shas: ArrayBuffer[], indexName: string) : Promise<(FeatherDocumentEntry | undefined)[]>;
+    abstract get_document_by_uuid(uuid: Uint8Array, indexName: string) : Promise<FeatherDocumentEntry | undefined>;
 
-    abstract search_by_title(title: string): Promise<FeatherDocumentEntry[]>;
+    abstract search_by_title(title: string, indexName: string): Promise<FeatherDocumentEntry[]>;
     
-    abstract insert_internal(documents: FeatherDocumentEntry[]) : Promise<Uint8Array[]>;
-    abstract delete_internal(uuids: Uint8Array[]) : Promise<Uint8Array[]>;
+    abstract insert_internal(documents: FeatherDocumentEntry[], indexName: string) : Promise<Uint8Array[]>;
+    abstract delete_internal(uuids: Uint8Array[], indexName: string) : Promise<Uint8Array[]>;
 }   
 
 export function SHAToHexString(array : Uint8Array): string {
