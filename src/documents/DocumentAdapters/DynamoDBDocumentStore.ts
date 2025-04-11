@@ -1,11 +1,10 @@
 import { FeatherDocumentEntry } from "../FeatherDocumentStore.d";
 import { FeatherDocumentStore } from "../FeatherDocumentStore";
-import { BatchWriteCommand, DynamoDBDocumentClient, GetCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { BatchWriteCommand, DynamoDBDocumentClient, GetCommand, QueryCommand, BatchGetCommand, BatchGetCommandInput } from "@aws-sdk/lib-dynamodb";
 import { DYNAMO_DB_MAX_BATCH_SIZE } from "../../search/SearchAdapters/DynamoDBIndex";
 
 export class DynamoDBDocumentStore extends FeatherDocumentStore 
 {
-
     client: DynamoDBDocumentClient;
     tableName: string;
         
@@ -24,8 +23,29 @@ export class DynamoDBDocumentStore extends FeatherDocumentStore
         return this.getDocumentByUUID(this.client, this.tableName, indexName, uuid);
     }
 
-    search_by_title(title: string, indexName: string): Promise<FeatherDocumentEntry[]> {
-        throw new Error("Method not implemented.");
+    async search_by_title(title: string, indexName: string): Promise<FeatherDocumentEntry[]> {
+        //search for titles that begin with or equal the given title
+        //eg. title:"fran" should match "franchise tax"
+
+        const params = {
+            TableName: this.tableName,
+            IndexName: "TitleIndex",
+            KeyConditionExpression: "pk = :pk and begins_with(t, :t)",
+            ExpressionAttributeValues: {
+                ":t": title,
+                ":pk": indexName
+            },
+        };
+
+        try {
+            const data = await this.client.send(new QueryCommand(params));
+            if(data.Items === undefined) return [];
+            return data.Items as FeatherDocumentEntry[];
+        }catch (error) {
+            console.error("Error getting document by title:", error);
+            return [];
+        }
+
     }
 
     async insert_internal(documents: FeatherDocumentEntry[]): Promise<Uint8Array[]> 
@@ -56,6 +76,28 @@ export class DynamoDBDocumentStore extends FeatherDocumentStore
         }
 
         return undefined;
+    }
+
+    async bulk_get_document_by_uuid(uuids: Uint8Array[], indexName: string): Promise<FeatherDocumentEntry[]> {
+        const batch_params: BatchGetCommandInput = {
+            RequestItems: {
+                [this.tableName]: {
+                    Keys: uuids.map(uuid => ({
+                        pk: indexName,
+                        id: uuid
+                    }))
+                }
+            }
+        };
+
+        try {
+            const data = await this.client.send(new BatchGetCommand(batch_params));
+            if(data.Responses === undefined) return [];
+            return data.Responses[this.tableName] as FeatherDocumentEntry[];
+        } catch (error) {
+            console.error("Error getting documents by uuid:", error);
+            return [];
+        }
     }
 
     async deleteDynamoDBEntryBatch(client: DynamoDBDocumentClient, table_name: string, indexName: string, uuids: Uint8Array[]): Promise<Uint8Array[]> 
@@ -130,11 +172,11 @@ export class DynamoDBDocumentStore extends FeatherDocumentStore
         //and the sha is the sort key
         const params = {
             TableName: table_name,
-            IndexName: "sha_index",
+            IndexName: "SHAIndex",
             KeyConditionExpression: "pk = :pk and sha = :sha",
             ExpressionAttributeValues: {
-                ":sha": { B: new Uint8Array(sha) },
-                ":pk": { S: indexName }
+                ":sha": new Uint8Array(sha),
+                ":pk": indexName
             }
         };
         

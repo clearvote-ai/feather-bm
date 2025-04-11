@@ -6,11 +6,7 @@ import { parse, stringify } from "uuid";
 
 export abstract class FeatherDocumentStore
 {
-
-
-    //maximum number of concurrent requests to the data store
-    //adjust based on your API limits
-    MAX_CONCURRENT = 4;
+    MAX_CONCURRENT_COMPRESSION_THREADS = 1;
 
     COMPRESSION_OPTIONS : IBrotliCompressOptions = {
         //https://blog.cloudflare.com/results-experimenting-brotli/
@@ -31,7 +27,7 @@ export abstract class FeatherDocumentStore
         this.enableCompression = enableCompression;
     }
 
-    async insert(documents: IngestionDocument[] | IngestionDocument, indexName: string): Promise<void>
+    async insert(documents: FeatherDocument[] | FeatherDocument, indexName: string): Promise<void>
     {
         // Ensure documents is an array
         if (!Array.isArray(documents)) {
@@ -40,7 +36,7 @@ export abstract class FeatherDocumentStore
         if(documents.length === 0) throw new Error("No documents to insert");
 
         const { results } = await PromisePool
-        .withConcurrency(this.MAX_CONCURRENT)
+        .withConcurrency(this.MAX_CONCURRENT_COMPRESSION_THREADS)
         .for(documents)
         .process(async (doc, index) => {
             const text_buffer = Buffer.from(doc.text);
@@ -48,15 +44,16 @@ export abstract class FeatherDocumentStore
 
             const sha = new Uint8Array(sha256.arrayBuffer(doc.text));
 
-            const uuid = parse(doc.uuidv7);
+            const uuid = parse(doc.id);
 
             return {
+                pk: indexName,
                 id: uuid,
                 t: doc.title,
                 txt: compressed_text_buffer,
                 sha: sha,
-                p: doc.published,
-            } as FeatherDocumentEntry;
+                p: doc.published
+            } satisfies FeatherDocumentEntry;
         });
 
         //Adapter is responsible for inserting the entries in the data store
@@ -76,7 +73,7 @@ export abstract class FeatherDocumentStore
     }
 
 
-    async document_exists(documents: IngestionDocument[] | IngestionDocument, indexName: string): Promise<(FeatherDocumentEntry | undefined)[]>
+    async document_exists(documents: FeatherDocument[] | FeatherDocument, indexName: string): Promise<(FeatherDocumentEntry | undefined)[]>
     {
         // Ensure documents is an array
         if (!Array.isArray(documents)) {
@@ -89,11 +86,30 @@ export abstract class FeatherDocumentStore
         return sha_matches;
     }
 
+    async bulk_get(uuids: Uint8Array[], indexName: string): Promise<FeatherDocument[]>
+    {
+        const entries = await this.bulk_get_document_by_uuid(uuids, indexName);
+        const decompressed_entries = await Promise.all(entries.map(async (entry) => {
+            if(entry === undefined) return undefined;
+            return await this.decompressFeatherDocumentEntry(entry, indexName);
+        })
+        // Filter out undefined entries
+        .filter((entry) => entry !== undefined));
+        
+        return decompressed_entries as FeatherDocument[];
+    }
+
     async get(uuid: string, indexName: string): Promise<FeatherDocument | undefined>
     {
         const uuidBytes = parse(uuid);
         const compressed_document = await this.get_document_by_uuid(uuidBytes, indexName);
+        if(compressed_document === undefined) return undefined;
 
+        return await this.decompressFeatherDocumentEntry(compressed_document, indexName);
+    }
+
+    async decompressFeatherDocumentEntry(compressed_document: FeatherDocumentEntry, indexName: string): Promise<FeatherDocument | undefined>
+    {
         if(compressed_document === undefined) return undefined;
 
         const decompressed_text = this.enableCompression ? Buffer.from(await decompress(compressed_document.txt)) : Buffer.from(compressed_document.txt);
@@ -101,9 +117,12 @@ export abstract class FeatherDocumentStore
 
         const sha_string = SHAToHexString(compressed_document.sha);
 
+        const uuid = compressed_document.id;
+        const uuid_string = stringify(uuid);
+
         return {
             pk: indexName,
-            id: uuid,
+            id: uuid_string,
             sha: sha_string,
             title: compressed_document.t,
             text: text,
@@ -114,6 +133,7 @@ export abstract class FeatherDocumentStore
     //TODO: Implement DynamoDB Table for DocumentStore
     abstract get_document_by_sha(shas: ArrayBuffer[], indexName: string) : Promise<(FeatherDocumentEntry | undefined)[]>;
     abstract get_document_by_uuid(uuid: Uint8Array, indexName: string) : Promise<FeatherDocumentEntry | undefined>;
+    abstract bulk_get_document_by_uuid(uuids: Uint8Array[], indexName: string) : Promise<FeatherDocumentEntry[]>;
 
     abstract search_by_title(title: string, indexName: string): Promise<FeatherDocumentEntry[]>;
     

@@ -2,7 +2,7 @@ import { InverseDocumentFrequencyEntry, TermFrequencyEntry, GlobalStatisticsEntr
 import { FeatherBMIndex, UUID_000 } from "../FeatherBMIndex";
 import BTree from "sorted-btree";
 import { stringify } from "uuid";
-import { IngestionDocument } from "../../documents/FeatherDocumentStore.d";
+import { FeatherDocument, IngestionDocument } from "../../documents/FeatherDocumentStore.d";
 
 export class HashIndex extends FeatherBMIndex
 {
@@ -12,7 +12,7 @@ export class HashIndex extends FeatherBMIndex
 
     global_entry_store: { [pk: string]: GlobalStatisticsEntry } = {}
 
-    static async from(docs: IngestionDocument[], index_name: string): Promise<HashIndex> {
+    static async from(docs: FeatherDocument[], index_name: string): Promise<HashIndex> {
         const index = new HashIndex();
         await index.insert(docs, index_name);
         return index;

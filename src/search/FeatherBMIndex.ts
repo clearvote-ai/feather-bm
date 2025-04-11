@@ -2,7 +2,7 @@ import { BM25Score, GlobalStatisticsEntry, IndexEntry, InverseDocumentFrequencyE
 import { expandQueryToTokens } from "./NLPUtils";
 import PromisePool from "@supercharge/promise-pool";
 import { parse, stringify } from "uuid";
-import { IngestionDocument } from "../documents/FeatherDocumentStore.d";
+import { FeatherDocument, IngestionDocument } from "../documents/FeatherDocumentStore.d";
 
 //Default UUID for IDF and Global stats entries
 export const UUID_000 = new Uint8Array(16);
@@ -103,7 +103,7 @@ export abstract class FeatherBMIndex
     //NOTE: you should ensure the documents are NOT already in the index before calling insert
     //calling insert here will overwrite any existing documents with the same id but it might result in undefined index behavior
     //if you inserted 2 different versions of the same document with the same UUID then the index will keep both versions which you may not want
-    async insert(documents: IngestionDocument[] | IngestionDocument, indexName: string) : Promise<void>{
+    async insert(documents: FeatherDocument[] | FeatherDocument, indexName: string) : Promise<void>{
         if(!Array.isArray(documents)) documents = [documents]; //ensure we have an array of documents
         if(documents.length === 0) return; //nothing to insert
 
@@ -118,7 +118,7 @@ export abstract class FeatherBMIndex
     }
 
     //NOTE: you should ensure the documents are already in the index before calling delete
-    async delete(documents: IngestionDocument[] | IngestionDocument, indexName: string) : Promise<void> {
+    async delete(documents: FeatherDocument[] | FeatherDocument, indexName: string) : Promise<void> {
         await this.retrieveGlobalEntry(indexName); //get the global stats entry for this index
         if(!Array.isArray(documents)) documents = [documents]; //ensure we have an array of documents
         if(documents.length === 0) return; //nothing to delete
@@ -205,12 +205,12 @@ export abstract class FeatherBMIndex
     }
 
     //the function that actually builds the inverted index entries for a set of documents
-    computeInvertedEndexEntries(documents: IngestionDocument[], indexName: string)
+    computeInvertedEndexEntries(documents: FeatherDocument[], indexName: string)
     {
         const term_frequency_entries : TermFrequencyEntry[] = [];
         const idf_entries : InverseDocumentFrequencyEntry[] = [];
         if(documents.length === 0) throw new Error("No documents to index");
-        if(documents.some(doc => !doc.uuidv7)) throw new Error("All documents must have a uuidv7");
+        if(documents.some(doc => !doc.id)) throw new Error("All documents must have a uuidv7");
 
         const invertedIndexIDFEntries : { [token: string] : Set<string> } = {};
         var totalDocumentLength = 0;
@@ -227,7 +227,7 @@ export abstract class FeatherBMIndex
             {
                 //increment the InverseDocumentFrequency (IDF) for this token aka the number of documents that contain this token
                 if(!invertedIndexIDFEntries.hasOwnProperty(token)) invertedIndexIDFEntries[token] = new Set<string>();
-                invertedIndexIDFEntries[token].add(doc.uuidv7);
+                invertedIndexIDFEntries[token].add(doc.id);
                 if(!doc_tf_entries.hasOwnProperty(token)) doc_tf_entries[token] = 0;
                 doc_tf_entries[token]++;
             }
@@ -236,7 +236,7 @@ export abstract class FeatherBMIndex
             for(const token in doc_tf_entries)
             {
                 //we assume that the id is already a UUIDv7, so we can parse it directly
-                const id = parse(doc.uuidv7);
+                const id = parse(doc.id);
 
                 if(id === undefined) {
                     throw new Error("Invalid UUIDv7");

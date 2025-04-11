@@ -1,4 +1,4 @@
-import { FeatherDocumentEntry, IngestionDocument } from "../FeatherDocumentStore.d";
+import { FeatherDocument, FeatherDocumentEntry, IngestionDocument } from "../FeatherDocumentStore.d";
 import { FeatherDocumentStore, SHAToHexString } from "../FeatherDocumentStore";
 import BTree from "sorted-btree";
 import { stringify } from "uuid";
@@ -14,7 +14,6 @@ Get largest key/pair that is lower than k: t.nextLowerKey(k), t.nextLowerPair(k)
 
 export class HashDocumentStore extends FeatherDocumentStore 
 {
-
     //TODO: remove pk from this implementation its unecessary for testing
     store: BTree<string, FeatherDocumentEntry> = new BTree<string, FeatherDocumentEntry>();
     //secondary index for title maps from title to document id
@@ -22,7 +21,7 @@ export class HashDocumentStore extends FeatherDocumentStore
     //secondary index for sha maps from sha to document id
     sha_index: BTree<string, string> = new BTree<string, string>();
 
-    public static async from(documents: IngestionDocument[], indexName: string, enableCompression: boolean = false): Promise<HashDocumentStore> {
+    public static async from(documents: FeatherDocument[], indexName: string, enableCompression: boolean = false): Promise<HashDocumentStore> {
         const store = new HashDocumentStore(enableCompression);
         await store.insert(documents, indexName);
         return store;
@@ -45,6 +44,18 @@ export class HashDocumentStore extends FeatherDocumentStore
         const uuid_string = stringify(uuid);
         const entry = this.store.get(uuid_string);
         return Promise.resolve(entry);
+    }
+
+    bulk_get_document_by_uuid(uuids: Uint8Array[], indexName: string): Promise<FeatherDocumentEntry[]> {
+        const entries: FeatherDocumentEntry[] = [];
+        for (const uuid of uuids) {
+            const uuid_string = stringify(uuid);
+            const entry = this.store.get(uuid_string);
+            if(entry) {
+                entries.push(entry);
+            }
+        }
+        return Promise.resolve(entries);
     }
 
     search_by_title(title: string): Promise<FeatherDocumentEntry[]> {

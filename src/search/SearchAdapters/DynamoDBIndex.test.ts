@@ -1,8 +1,8 @@
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { DynamoDBIndex } from "./DynamoDBIndex";
 import { CreateTableCommand, DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { IngestionDocument } from "../../documents/FeatherDocumentStore.d";
-import test_docs from "../../test_data/test_docs.json";
+import { FeatherDocument, IngestionDocument } from "../../documents/FeatherDocumentStore.d";
+import test_feather_docs from "../../test_data/test_feather_docs.json";
 
 const local_dynamo_client = new DynamoDBClient({
     region: "us-west-2",
@@ -49,7 +49,7 @@ describe('DynamoDB', () => {
     });
 
     test('insert', async () => {
-        const docs = test_docs as IngestionDocument[];
+        const docs = test_feather_docs as unknown as FeatherDocument[];
 
         const client = DynamoDBDocumentClient.from(local_dynamo_client);
         const index = await DynamoDBIndex.from(client, "FeatherIndex");
@@ -68,9 +68,9 @@ describe('DynamoDB', () => {
 
         console.log("Top Score: ", top_score);
 
-        const docs = test_docs as IngestionDocument[];
+        const docs = test_feather_docs as unknown as FeatherDocument[];
 
-        const top_doc = docs.find(doc => doc.uuidv7 === top_score.id);
+        const top_doc = docs.find(doc => doc.id === top_score.id);
 
         console.log("Top Document: ", top_doc);
 
@@ -88,9 +88,9 @@ describe('DynamoDB', () => {
 
         console.log("Top Score: ", top_score);
 
-        const docs = test_docs as IngestionDocument[];
+        const docs = test_feather_docs as unknown as FeatherDocument[];
 
-        const top_doc = docs.find(doc => doc.uuidv7 === top_score.id);
+        const top_doc = docs.find(doc => doc.id === top_score.id);
 
         console.log("Top Document: ", top_doc);
 
@@ -102,11 +102,11 @@ describe('DynamoDB', () => {
 
         const scores = await index.query("franchise tax","test_index");
 
-        const full_docs = test_docs as IngestionDocument[];
+        const full_docs = test_feather_docs as unknown as FeatherDocument[];
 
-        const scored_docs = scores.map(score => full_docs.find(doc => doc.uuidv7 === score.id));
+        const scored_docs = scores.map(score => full_docs.find(doc => doc.id === score.id));
 
-        await index.delete(scored_docs as IngestionDocument[], "test_index");
+        await index.delete(scored_docs as FeatherDocument[], "test_index");
 
         const new_scores = await index.query("franchise tax","test_index");
 

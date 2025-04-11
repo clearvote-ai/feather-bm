@@ -18,7 +18,7 @@ export type FeatherDocument = {
     sha: string, //sha256 hash
     title?: string,
     text: string, 
-    published: boolean,
+    published?: boolean,
 }
 
 //NOTE: This is the type that is actually stored in the data store
@@ -29,5 +29,5 @@ export type FeatherDocumentEntry = {
     sha: Uint8Array, //sha256 hash
     t?: string, //title
     txt: Uint8Array, //brotli compressed text as binary
-    p: boolean, //is this document published and indexed - availible for search
+    p?: boolean, //is this document published and indexed - availible for search
 }
