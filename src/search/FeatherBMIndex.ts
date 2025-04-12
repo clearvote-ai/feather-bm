@@ -15,9 +15,13 @@ export abstract class FeatherBMIndex
 
     //BM25 parameters
     //Want to understand the significance of the params below?: https://www.youtube.com/watch?v=ruBm9WywevM
-    K1 = 1.2;
-    B = 0.75;
-    DEFAULT_AVERAGE_DOCUMENT_LENGTH = 400; //default average document length aka the MIN average document length
+    //K1 = 1.2;
+    //B = 0.75;
+    //avgDL = 400; //default average document length aka the MIN average document length
+
+    DEFAULT_K1 = 1.2;
+    DEFAULT_B = 0.75;
+    DEFAULT_AVG_DL = 400;
 
     //the count in tokens of all documents added to the index
     global_entries : { [indexName: string] : GlobalStatisticsEntry } = {};
@@ -30,24 +34,8 @@ export abstract class FeatherBMIndex
     abstract get_global_entry_internal(indexName: string) : Promise<GlobalStatisticsEntry | undefined>;
     abstract insert_internal(tf_entries: TermFrequencyEntry[], idf_entries:InverseDocumentFrequencyEntry[]) : Promise<void>;
     abstract delete_internal(tf_entries: TermFrequencyEntry[], idf_entries: InverseDocumentFrequencyEntry[]) : Promise<void>;
-    
 
-    constructor(K1: number = 1.2, B: number = 0.75)
-    {
-        //TODO: make an initializer that grabs the global stats entry for each read
-        this.K1 = K1;
-        this.B = B;
-    }
-
-    getAverageDocumentLength(indexName: string): number {
-        const global_stats = this.global_entries[indexName];
-        if(!global_stats) return this.DEFAULT_AVERAGE_DOCUMENT_LENGTH; //default to 400 if no documents
-        const averageDocumentLength = global_stats.totalDocumentLength / global_stats.documentCount;
-        if (isNaN(averageDocumentLength)) {
-            return this.DEFAULT_AVERAGE_DOCUMENT_LENGTH;
-        }
-        return Math.max(global_stats.totalDocumentLength / global_stats.documentCount, this.DEFAULT_AVERAGE_DOCUMENT_LENGTH); //default to 400 if no documents
-    }
+    //TODO: add a function to create a custom global entry for k1, b and avgDL
 
     private async retrieveGlobalEntry(indexName: string) : Promise<GlobalStatisticsEntry> {
         //check if we already have the global entry in memory
@@ -61,7 +49,10 @@ export abstract class FeatherBMIndex
                 pk: `${indexName}#global_stats`, //partition key
                 id: UUID_000, //sort key placeholder for global stats
                 totalDocumentLength: 0,
-                documentCount: 0
+                documentCount: 0,
+                k1: this.DEFAULT_K1,
+                b: this.DEFAULT_B,
+                avgDL: this.DEFAULT_AVG_DL
             };
             //insert the new entry into the data store
             await this.update_global_entry_internal(new_global_stats_entry);
@@ -89,7 +80,10 @@ export abstract class FeatherBMIndex
             pk: `${indexName}#global_stats`, //partition key
             id: UUID_000, //sort key placeholder for global stats
             totalDocumentLength: new_total_document_length,
-            documentCount: new_document_count
+            documentCount: new_document_count,
+            k1: global_stats_entry.k1,
+            b: global_stats_entry.b,
+            avgDL: global_stats_entry.avgDL
         };
 
         //update the global stats entry in memory
@@ -107,8 +101,8 @@ export abstract class FeatherBMIndex
         if(!Array.isArray(documents)) documents = [documents]; //ensure we have an array of documents
         if(documents.length === 0) return; //nothing to insert
 
-        await this.retrieveGlobalEntry(indexName); //get the global stats entry for this index
-        const { global_stats_entry, idf_entries, tf_entries } = this.computeInvertedEndexEntries(documents, indexName);
+        const current_global_stats_entry = await this.retrieveGlobalEntry(indexName); //get the global stats entry for this index
+        const { global_stats_entry, idf_entries, tf_entries } = this.computeInvertedEndexEntries(documents, indexName, current_global_stats_entry);
 
         //Adapter is responsible for inserting the entries into the data store
         await this.insert_internal(tf_entries, idf_entries);
@@ -119,10 +113,10 @@ export abstract class FeatherBMIndex
 
     //NOTE: you should ensure the documents are already in the index before calling delete
     async delete(documents: FeatherDocument[] | FeatherDocument, indexName: string) : Promise<void> {
-        await this.retrieveGlobalEntry(indexName); //get the global stats entry for this index
+        const current_global_stats_entry = await this.retrieveGlobalEntry(indexName); //get the global stats entry for this index
         if(!Array.isArray(documents)) documents = [documents]; //ensure we have an array of documents
         if(documents.length === 0) return; //nothing to delete
-        const { global_stats_entry, idf_entries, tf_entries } = this.computeInvertedEndexEntries(documents, indexName);
+        const { global_stats_entry, idf_entries, tf_entries } = this.computeInvertedEndexEntries(documents, indexName, current_global_stats_entry);
 
         //Adapter is responsible for deleting the entries from the data store
         await this.delete_internal(tf_entries, idf_entries);
@@ -189,23 +183,30 @@ export abstract class FeatherBMIndex
     }
 
     //compute the BM25 score for a single TOKEN_X_DOCUMENT pair
-    bm25(inverseDocumentFrequency: number, termFrequency: number, documentLength: number, averageDocumentLength: number) : number
+    bm25(
+        inverseDocumentFrequency: number, 
+        termFrequency: number, 
+        documentLength: number, 
+        avgDL: number,
+        K1: number,
+        B: number
+    ) : number
     {
         return (
-            (inverseDocumentFrequency * (termFrequency * (this.K1 + 1))) /
-            (termFrequency + this.K1 * (1 - this.B + (this.B * documentLength) / averageDocumentLength))
+            (inverseDocumentFrequency * (termFrequency * (K1 + 1))) /
+            (termFrequency + K1 * (1 - B + (B * documentLength) / avgDL))
         );
     }
 
-    bm25Static(termFrequency: number, documentLength: number, averageDocumentLength: number) : number
+    bm25Static(termFrequency: number, documentLength: number, avgDL: number, K1: number, B: number) : number
     {
         return (
-            (termFrequency * (this.K1 + 1)) / (termFrequency + this.K1 * (1 - this.B + (this.B * documentLength) / averageDocumentLength))
+            (termFrequency * (K1 + 1)) / (termFrequency + K1 * (1 - B + (B * documentLength) / avgDL))
         );
     }
 
     //the function that actually builds the inverted index entries for a set of documents
-    computeInvertedEndexEntries(documents: FeatherDocument[], indexName: string)
+    computeInvertedEndexEntries(documents: FeatherDocument[], indexName: string, current_global_stats_entry: GlobalStatisticsEntry)
     {
         const term_frequency_entries : TermFrequencyEntry[] = [];
         const idf_entries : InverseDocumentFrequencyEntry[] = [];
@@ -214,7 +215,7 @@ export abstract class FeatherBMIndex
 
         const invertedIndexIDFEntries : { [token: string] : Set<string> } = {};
         var totalDocumentLength = 0;
-        const averageDocumentLength = this.getAverageDocumentLength(indexName);
+        const averageDocumentLength = current_global_stats_entry.avgDL;
 
         //TODO: make this a concurrent operation
         for(const doc of documents)
@@ -244,7 +245,7 @@ export abstract class FeatherBMIndex
 
                 const tf = doc_tf_entries[token];
                 const len = token_count;
-                const tf_indexed = this.bm25Static(tf, len, averageDocumentLength);
+                const tf_indexed = this.bm25Static(tf, len, averageDocumentLength, current_global_stats_entry.k1, current_global_stats_entry.b);
 
                 const entry : TermFrequencyEntry = {
                     pk: `${indexName}#${token}`, //partition key
@@ -273,7 +274,10 @@ export abstract class FeatherBMIndex
             pk: `${indexName}#global_stats`, //partition key
             id: UUID_000, //sort key placeholder for global stats
             totalDocumentLength: totalDocumentLength,
-            documentCount: documents.length
+            documentCount: documents.length,
+            k1: current_global_stats_entry.k1,
+            b: current_global_stats_entry.b,
+            avgDL: totalDocumentLength / documents.length
         };
 
         return {

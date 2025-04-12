@@ -3,7 +3,8 @@
 //the interface type for documents you want to ingest
 export interface IngestionDocument 
 {
-    uuidv7: string, //must be a uuidv7
+    uuidv7?: string, //must be a uuidv7
+    dateTime?: string, //optional datetime string
     title?: string,
     text: string,
     published?: boolean,

@@ -14,15 +14,17 @@ describe('HashIndex', () => {
         const docs = test_feather_docs as unknown as FeatherDocument[];
         const index = await HashIndex.from(docs, "test_index");
 
-        const scores = await index.query("franchise tax", "test_index",false, 100);
+        const scores = (await index.query("franchise tax", "test_index", false, 100)).slice(0, 10);
 
-        const top_score = scores[0];
-
-        console.log("Top Score: ", top_score);
-
-        const top_doc = docs.find(doc => doc.id === top_score.id);
+        const top_docs = scores.map(score => docs.find(doc => doc.id === score.id)).map(doc => {
+            return {
+                id: doc?.id ?? "",
+                title: doc?.title ?? "",
+                score: scores.find(s => s.id === doc?.id)?.score ?? 0,
+            };
+        });
         
-        console.log("Top Document: ", top_doc);
+        console.log(top_docs);
     }, 10000);
 
     test('global_query', async () => {
@@ -31,15 +33,15 @@ describe('HashIndex', () => {
 
         const scores = await index.query("franchise tax", "test_index", true, 10);
 
-        //expect(scores.length).toBe(10);
-
-        const top_score = scores[0];
-
-        console.log("Top Score: ", top_score);
-
-        const top_doc = docs.find(doc => doc.id === top_score.id);
+        const top_docs = scores.map(score => docs.find(doc => doc.id === score.id)).map(doc => {
+            return {
+                id: doc?.id ?? "",
+                title: doc?.title ?? "",
+                score: scores.find(s => s.id === doc?.id)?.score ?? 0,
+            };
+        });
         
-        console.log("Top Document: ", top_doc);
+        console.log(top_docs);
     }, 10000);
 
     test('delete', async () => {

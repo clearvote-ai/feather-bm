@@ -23,6 +23,9 @@ export type GlobalStatisticsEntry = {
     id: UUID_000, //sort key placeholder for global stats
     totalDocumentLength: number,
     documentCount: number,
+    k1: number,
+    b: number,
+    avgDL: number,
 }
 
 export type InverseDocumentFrequencyEntry = {
@@ -33,7 +36,7 @@ export type InverseDocumentFrequencyEntry = {
 
 export type IndexEntry = TermFrequencyEntry | InverseDocumentFrequencyEntry;
 
-export type BM25Score ={
+export type BM25Score = {
     id: string,
     score: number
 }
