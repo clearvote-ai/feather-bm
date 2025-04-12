@@ -3,6 +3,4 @@ node_modules
 .build
 .vscode
 
-src/test_data/*
-
 docker/dynamo_db_local/docker
