@@ -35,7 +35,34 @@ export abstract class FeatherBMIndex
     abstract insert_internal(tf_entries: TermFrequencyEntry[], idf_entries:InverseDocumentFrequencyEntry[]) : Promise<void>;
     abstract delete_internal(tf_entries: TermFrequencyEntry[], idf_entries: InverseDocumentFrequencyEntry[]) : Promise<void>;
 
-    //TODO: add a function to create a custom global entry for k1, b and avgDL
+    //function to create a custom global entry for k1, b and avgDL
+    //only use this BEFORE you start inserting documents into the index
+    //this is useful if you want to use different values for k1, b and avgDL for different indexes
+    //NOTE: it will do nothing if the entry already exists
+    public async createIndex(indexName: string, k1: number = this.DEFAULT_K1, b: number = this.DEFAULT_B, avgDL: number = this.DEFAULT_AVG_DL) : Promise<void> {
+        //check if we already have the global entry in memory
+        const global_stats_entry = this.global_entries[indexName];
+        if(global_stats_entry) return; //if we already have the entry, do nothing
+        //if not, retrieve it from the data store
+        const global_stats_entry_from_store = await this.get_global_entry_internal(indexName);
+        if(!global_stats_entry_from_store) {
+            //if the entry does not exist, create a new one
+            const new_global_stats_entry : GlobalStatisticsEntry = {
+                pk: `${indexName}#global_stats`, //partition key
+                id: UUID_000, //sort key placeholder for global stats
+                totalDocumentLength: 0,
+                documentCount: 0,
+                k1: k1,
+                b: b,
+                avgDL: avgDL
+            };
+            //insert the new entry into the data store
+            await this.update_global_entry_internal(new_global_stats_entry);
+            //update the global stats entry in memory
+            this.global_entries[indexName] = new_global_stats_entry;
+            return;
+        }
+    }
 
     private async retrieveGlobalEntry(indexName: string) : Promise<GlobalStatisticsEntry> {
         //check if we already have the global entry in memory
