@@ -27,10 +27,10 @@ export abstract class FeatherDocumentStore
         this.enableCompression = enableCompression;
     }
 
-    async insert(documents: FeatherDocument[] | FeatherDocument, indexName: string): Promise<void>
+    async insert<F extends FeatherDocument>(documents: F[] | F, indexName: string): Promise<void>
     {
         // Ensure documents is an array
-        if (!Array.isArray(documents)) {
+        if (!Array.isArray(documents)) { 
             documents = [documents];
         }
         if(documents.length === 0) throw new Error("No documents to insert");
@@ -99,7 +99,7 @@ export abstract class FeatherDocumentStore
         return decompressed_entries as FeatherDocument[];
     }
 
-    async get(uuid: string, indexName: string): Promise<FeatherDocument | undefined>
+    async get<F extends FeatherDocument>(uuid: string, indexName: string): Promise<F | undefined>
     {
         const uuidBytes = parse(uuid);
         const compressed_document = await this.get_document_by_uuid(uuidBytes, indexName);
@@ -108,7 +108,7 @@ export abstract class FeatherDocumentStore
         return await this.decompressFeatherDocumentEntry(compressed_document, indexName);
     }
 
-    async decompressFeatherDocumentEntry(compressed_document: FeatherDocumentEntry, indexName: string): Promise<FeatherDocument | undefined>
+    async decompressFeatherDocumentEntry<F extends FeatherDocument>(compressed_document: FeatherDocumentEntry, indexName: string): Promise<F | undefined>
     {
         if(compressed_document === undefined) return undefined;
 
@@ -120,6 +120,12 @@ export abstract class FeatherDocumentStore
         const uuid = compressed_document.id;
         const uuid_string = stringify(uuid);
 
+        const custom_field_keys = Object.keys(compressed_document).filter((key) => !["pk", "id", "sha", "t", "txt", "p"].includes(key));
+        const custom_fields = custom_field_keys.reduce((acc, key) => {
+            acc[key] = (compressed_document as Record<string, any>)[key];
+            return acc;
+        }, {} as Record<string, any>);
+
         return {
             pk: indexName,
             id: uuid_string,
@@ -127,10 +133,11 @@ export abstract class FeatherDocumentStore
             title: compressed_document.t,
             text: text,
             published: compressed_document.p,
-        } as FeatherDocument;
+            //copy custom fields from the document
+            ...custom_fields,
+        } as F;
     }
-
-    //TODO: Implement DynamoDB Table for DocumentStore
+    
     abstract get_document_by_sha(shas: ArrayBuffer[], indexName: string) : Promise<(FeatherDocumentEntry | undefined)[]>;
     abstract get_document_by_uuid(uuid: Uint8Array, indexName: string) : Promise<FeatherDocumentEntry | undefined>;
     abstract bulk_get_document_by_uuid(uuids: Uint8Array[], indexName: string) : Promise<FeatherDocumentEntry[]>;

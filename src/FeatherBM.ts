@@ -6,10 +6,13 @@ import { DynamoDBIndex } from "./search/SearchAdapters/DynamoDBIndex";
 import { FeatherDocument, IngestionDocument } from "./documents/FeatherDocumentStore.d";
 import { HashIndex } from "./search/SearchAdapters/HashIndex";
 import { HashDocumentStore } from "./documents/DocumentAdapters/HashDocumentStore";
+import { uuidv7 } from "uuidv7";
+import { parse, stringify } from "uuid";
 
+import { DateTime } from "luxon";
+import { sha256 } from "js-sha256";
 
-
-export class FeatherBM<T extends FeatherBMIndex,K extends FeatherDocumentStore>
+export class FeatherBM<T extends FeatherBMIndex, K extends FeatherDocumentStore>
 {
     index : T;
     storage: K;
@@ -32,6 +35,11 @@ export class FeatherBM<T extends FeatherBMIndex,K extends FeatherDocumentStore>
         const index = await HashIndex.from(docs, index_name);
         const storage = new HashDocumentStore();
         return new FeatherBM<HashIndex,HashDocumentStore>(index, storage);
+    }
+
+    async get<F extends FeatherDocument>(uuid: string, indexName: string): Promise<F | undefined>
+    {
+        return await this.storage.get<F>(uuid, indexName);
     }
 
     async insert(documents: IngestionDocument | IngestionDocument[], indexName: string): Promise<void>
@@ -58,23 +66,49 @@ export class FeatherBM<T extends FeatherBMIndex,K extends FeatherDocumentStore>
         await this.index.delete(docs, indexName);
     }
 
-    ingestDocument(doc: IngestionDocument, indexName: string): FeatherDocument
+    private ingestDocument<D extends IngestionDocument, F extends FeatherDocument>(doc: D, indexName: string): F
     {
-        const { uuidv7, title, text, sha } = doc;
-        //TODO: finish the rules for ingestion
-        //if the uuidv7 is not set
-        if(!uuidv7)
-        {
-            throw new Error("uuidv7 is required");
-        }
+        const { title, text, published, iso8601 } = doc;
 
-        const document: FeatherDocument = {
+        //separate out the custom fields from the document
+        const custom_field_keys = Object.keys(doc).filter((key) => !["title", "text", "published", "iso8601"].includes(key));
+        const custom_fields = custom_field_keys.reduce((acc, key) => {
+            acc[key] = (doc as Record<string, any>)[key];
+            return acc;
+        }, {} as Record<string, any>);
+
+        const uuid = uuidv7();
+
+        //IF dateTime exists pack it into the first 6 bytes of the uuidv7 otherwise use the uuidv7 as is
+        const id = iso8601 ? packUUIDWithDateTime(uuid, iso8601) : uuid;
+        
+        const sha = sha256(text);
+
+        return {
             pk: indexName,
-            id: uuidv7,
+            id: id,
             title: title,
             text: text,
-            sha: sha
-        };
-        return document;
-    }
+            published: published,
+            sha: sha,
+            //copy custom fields from the document
+            ...custom_fields,
+        } as F;
+    };
+}
+
+
+function packUUIDWithDateTime(uuid: string, iso8601: string) : string
+{
+    const uuid_bytes = parse(uuid);
+
+    const dateTimeBytes = DateTime.fromISO(iso8601).toMillis();
+    uuid_bytes[0] = (dateTimeBytes >> 8) & 0xFF;
+    uuid_bytes[1] = (dateTimeBytes >> 16) & 0xFF;
+    uuid_bytes[2] = (dateTimeBytes >> 24) & 0xFF;
+    uuid_bytes[3] = (dateTimeBytes >> 32) & 0xFF;
+    uuid_bytes[4] = (dateTimeBytes >> 40) & 0xFF;
+    uuid_bytes[5] = (dateTimeBytes >> 48) & 0xFF;
+
+    return stringify(uuid_bytes);
 }

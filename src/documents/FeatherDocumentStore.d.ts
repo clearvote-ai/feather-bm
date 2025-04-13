@@ -3,13 +3,10 @@
 //the interface type for documents you want to ingest
 export interface IngestionDocument 
 {
-    uuidv7?: string, //must be a uuidv7
-    dateTime?: string, //optional datetime string
+    iso8601?: string, //optional datetime string
     title?: string,
     text: string,
-    published?: boolean,
-    //TODO: ingest these fields in the document store
-    [key: string]: any //allow any other properties
+    published?: boolean
 }
 
 //NOTE: This is the type thats returned from FeatherDocumentStore after hydration (aka. decompression)

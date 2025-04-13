@@ -3,7 +3,7 @@
       "preserveConstEnums": true,
       "strictNullChecks": true,
       "sourceMap": true,
-      "allowJs": true,
+      "allowJs": false,
       "target": "es2017",
       "outDir": "dist",
       "moduleResolution": "node",
@@ -24,7 +24,8 @@
       "node_modules",
       "**/*.test.ts",
       "src/test_data",
-      "**/*.spec.ts"
+      "**/*.spec.ts",
+      "jest.config.js"
     ]
   }
   
