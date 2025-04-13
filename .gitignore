@@ -1,6 +1,6 @@
 .serverless
 node_modules
-.build
+dist
 .vscode
 
 docker/dynamo_db_local/docker

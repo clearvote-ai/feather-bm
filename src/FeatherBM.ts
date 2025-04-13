@@ -40,7 +40,7 @@ export class FeatherBM<T extends FeatherBMIndex,K extends FeatherDocumentStore>
             documents = [documents];
         }
 
-        const featherDocuments = documents.map((doc) => this.ingestDocument(doc));
+        const featherDocuments = documents.map((doc) => this.ingestDocument(doc, indexName));
 
         await this.storage.insert(featherDocuments, indexName);
         await this.index.insert(featherDocuments, indexName);
@@ -58,13 +58,18 @@ export class FeatherBM<T extends FeatherBMIndex,K extends FeatherDocumentStore>
         await this.index.delete(docs, indexName);
     }
 
-    ingestDocument(doc: IngestionDocument): FeatherDocument
+    ingestDocument(doc: IngestionDocument, indexName: string): FeatherDocument
     {
         const { uuidv7, title, text, sha } = doc;
         //TODO: finish the rules for ingestion
         //if the uuidv7 is not set
+        if(!uuidv7)
+        {
+            throw new Error("uuidv7 is required");
+        }
 
         const document: FeatherDocument = {
+            pk: indexName,
             id: uuidv7,
             title: title,
             text: text,

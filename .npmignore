@@ -1,0 +1,3 @@
+
+src/test_data/*
+*/**/*.test.ts

@@ -5,7 +5,7 @@
     "sourceMap": true,
     "allowJs": true,
     "target": "es2017",
-    "outDir": ".build",
+    "outDir": "dist",
     "moduleResolution": "node",
     "lib": ["es2017"],
     "rootDir": "./",
@@ -13,6 +13,8 @@
     "module": "commonjs",
     "esModuleInterop": true,
     "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "declaration": true
   },
   "include": [
     "**/**/*",

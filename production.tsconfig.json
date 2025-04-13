@@ -1,0 +1,30 @@
+{
+    "compilerOptions": {
+      "preserveConstEnums": true,
+      "strictNullChecks": true,
+      "sourceMap": true,
+      "allowJs": true,
+      "target": "es2017",
+      "outDir": "dist",
+      "moduleResolution": "node",
+      "lib": ["es2017"],
+      "rootDir": "./",
+      "strict": true,
+      "module": "commonjs",
+      "esModuleInterop": true,
+      "resolveJsonModule": true,
+      "skipLibCheck": true,
+      "declaration": true
+    },
+    "include": [
+      "**/**/*",
+      "src/**/*.ts"
+    ],
+    "exclude": [
+      "node_modules",
+      "**/*.test.ts",
+      "src/test_data",
+      "**/*.spec.ts"
+    ]
+  }
+  
