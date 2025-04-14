@@ -30,16 +30,30 @@ export class FeatherBM<T extends FeatherBMIndex, K extends FeatherDocumentStore>
         return new FeatherBM<DynamoDBIndex,DynamoDBDocumentStore>(index, storage);
     }
 
-    static async fromHashMemory(docs: FeatherDocument[], index_name: string): Promise<FeatherBM<HashIndex, HashDocumentStore>>
+    static async fromInMemory(enable_compression: boolean): Promise<FeatherBM<HashIndex, HashDocumentStore>>
     {
-        const index = await HashIndex.from(docs, index_name);
-        const storage = new HashDocumentStore();
+        const index = new HashIndex();
+        const storage = new HashDocumentStore(enable_compression);
         return new FeatherBM<HashIndex,HashDocumentStore>(index, storage);
     }
 
     async get<F extends FeatherDocument>(uuid: string, indexName: string): Promise<F | undefined>
     {
         return await this.storage.get<F>(uuid, indexName);
+    }
+
+    async searchByTitle<F extends FeatherDocument>(query: string, indexName: string): Promise<F[]>
+    {
+        return await this.storage.searchByTitle<F>(query, indexName);
+    }
+
+    async query<F extends FeatherDocument>(query: string, indexName: string, global: boolean = true, maxResults: number = 100): Promise<F[]>
+    {
+        const scores = await this.index.query(query, indexName, global, maxResults);
+        const ids = scores.map((score) => score.id);
+        const documents = await this.storage.bulk_get(ids, indexName);
+        const filtered_documents = documents.filter((doc) => doc !== undefined) as F[];
+        return filtered_documents;
     }
 
     async insert(documents: IngestionDocument | IngestionDocument[], indexName: string): Promise<void>
@@ -54,7 +68,7 @@ export class FeatherBM<T extends FeatherBMIndex, K extends FeatherDocumentStore>
         await this.index.insert(featherDocuments, indexName);
     }
 
-    async delete(ids: Uint8Array | Uint8Array[], indexName: string): Promise<void>
+    async delete(ids: string | string[], indexName: string): Promise<void>
     {
         if (!Array.isArray(ids)) {
             ids = [ids];

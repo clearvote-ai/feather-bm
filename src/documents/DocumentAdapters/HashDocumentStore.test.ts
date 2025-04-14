@@ -108,7 +108,7 @@ describe('HashDocumentStore', () => {
         const first_doc = await store.get("01857a13-dc00-7b19-86a7-ba83ceee585e", "test_index");
         expect(first_doc).toBeDefined();
 
-        await store.delete([first_doc_uuid_bytes], "test_index");
+        await store.delete([first_doc_uuid], "test_index");
 
         const deleted_doc = await store.get("01857a13-dc00-7b19-86a7-ba83ceee585e", "test_index");
         expect(deleted_doc).toBeUndefined();

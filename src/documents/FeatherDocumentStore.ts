@@ -60,7 +60,7 @@ export abstract class FeatherDocumentStore
         await this.insert_internal(results, indexName);
     }
 
-    async delete(ids: Uint8Array | Uint8Array[], indexName: string): Promise<void>
+    async delete(ids: string | string[], indexName: string): Promise<void>
     {
         // Ensure documents is an array
         if (!Array.isArray(ids)) {
@@ -68,8 +68,10 @@ export abstract class FeatherDocumentStore
         }
         if(ids.length === 0) throw new Error("No documents to delete");
 
+        const id_buffer = ids.map(id => parse(id));
+
         //Adapter is responsible for deleting the entries in the data store
-        await this.delete_internal(ids, indexName);
+        await this.delete_internal(id_buffer, indexName);
     }
 
 
@@ -86,9 +88,10 @@ export abstract class FeatherDocumentStore
         return sha_matches;
     }
 
-    async bulk_get(uuids: Uint8Array[], indexName: string): Promise<FeatherDocument[]>
+    async bulk_get(uuids: string[], indexName: string): Promise<FeatherDocument[]>
     {
-        const entries = await this.bulk_get_document_by_uuid(uuids, indexName);
+        const uuid_buffer = uuids.map(uuid => parse(uuid));
+        const entries = await this.bulk_get_document_by_uuid(uuid_buffer, indexName);
         const decompressed_entries = await Promise.all(entries.map(async (entry) => {
             if(entry === undefined) return undefined;
             return await this.decompressFeatherDocumentEntry(entry, indexName);
@@ -136,6 +139,19 @@ export abstract class FeatherDocumentStore
             //copy custom fields from the document
             ...custom_fields,
         } as F;
+    }
+
+    async searchByTitle<F extends FeatherDocument>(title: string, indexName: string): Promise<F[]>
+    {
+        const entries = await this.search_by_title(title, indexName);
+        const decompressed_entries = await Promise.all(entries.map(async (entry) => {
+            if(entry === undefined) return undefined;
+            return await this.decompressFeatherDocumentEntry(entry, indexName);
+        })
+        // Filter out undefined entries
+        .filter((entry) => entry !== undefined));
+        
+        return decompressed_entries as F[];
     }
     
     abstract get_document_by_sha(shas: ArrayBuffer[], indexName: string) : Promise<(FeatherDocumentEntry | undefined)[]>;

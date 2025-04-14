@@ -31,37 +31,24 @@ interface GovernmentDocumentMetadataEntry {
 
 const docs = raw_docs as GovernmentDocumentMetadataEntry[];
 
+export interface GovIngestionDocument extends IngestionDocument 
+{
+    tags?: string[];
+    summary?: string;
+}
 
-export function buildTestDocs() : IngestionDocument[]
+
+export function buildTestDocs() : GovIngestionDocument[]
 {
     return docs.map((doc) => {
-        // Parse the created_at timestamp and convert it to epoch milliseconds
-        const createdAt = new Date(doc.created_at).getTime();
-
-        // Generate a uuidv7
-        const uuid = uuidv7();
-
-        // Convert the timestamp to a byte array (big-endian)
-        const timestampBytes = new Uint8Array(8);
-        const view = new DataView(timestampBytes.buffer);
-        view.setBigInt64(0, BigInt(createdAt), false); // false for big-endian
-
-        // Convert the uuid to a byte array
-        const uuidBytes = parse(uuid);
-
-        // Overwrite the first 6 bytes of the uuid with the last 6 bytes of the timestamp
-        for (let i = 0; i < 6; i++) {
-            uuidBytes[i] = timestampBytes[2 + i]; // Start from the 3rd byte to get the last 6 bytes
-        }
-
-        // Convert the modified byte array back to a UUID string
-        const modifiedUuid = stringify(uuidBytes);
-
         return {
-            uuidv7: modifiedUuid,
-            title: doc.title || "",
-            text: doc.full_text || "",
-        } satisfies IngestionDocument;
+            text: doc.full_text,
+            iso8601: doc.created_at,
+            published: true,
+            title: doc.title,
+            summary: doc.summary,
+            tags: doc.tags
+        } as GovIngestionDocument;
     });
 }
 
