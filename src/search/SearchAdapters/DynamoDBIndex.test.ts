@@ -14,7 +14,7 @@ const local_dynamo_client = new DynamoDBClient({
 });
 
 
-describe('DynamoDB', () => {
+describe('DynamoDB Integration', () => {
 
     test('createTable', async () => {
         const client = DynamoDBDocumentClient.from(local_dynamo_client);

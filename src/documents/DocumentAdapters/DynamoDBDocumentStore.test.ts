@@ -14,7 +14,7 @@ const local_dynamo_client = new DynamoDBClient({
     }
 });
 
-describe('DynamoDBDocumentStore', () => {
+describe('DynamoDB Integration', () => {
     test('createTable', async () => {
             const client = DynamoDBDocumentClient.from(local_dynamo_client);
             const table = await client.send( new CreateTableCommand( {
@@ -32,7 +32,7 @@ describe('DynamoDBDocumentStore', () => {
                 ],
                 GlobalSecondaryIndexes: [
                     {
-                        collectionName: "SHAIndex",
+                        IndexName: "SHAIndex",
                         KeySchema: [
                             { AttributeName: "pk", KeyType: "HASH" },
                             { AttributeName: "sha", KeyType: "RANGE" }
@@ -42,7 +42,7 @@ describe('DynamoDBDocumentStore', () => {
                         },
                     },
                     {
-                        collectionName: "TitleIndex",
+                        IndexName: "TitleIndex",
                         KeySchema: [
                             { AttributeName: "pk", KeyType: "HASH" },
                             { AttributeName: "t", KeyType: "RANGE" }
