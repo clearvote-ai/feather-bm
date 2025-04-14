@@ -10,9 +10,6 @@ Built with DynamoDB in mind but supports DB adapters.
 
 You'll need to estimate the average document length of your collection and know the BM25 search parameters you want to use before you create the collection.
 
-### Usecases
-Personal Blog | High Multitenancy | Document Management | Document Search
-
 #### Why would I use this?
 - You have a large set of document collections that each have a small number of documents (less than 100,000).
 
