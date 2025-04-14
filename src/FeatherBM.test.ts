@@ -20,8 +20,6 @@ describe('FeatherBM', () => {
 
         expect(result_2).toBeDefined();
         expect(result_2[0].title).toBe("House Bill 1070 - Appropriation for Assistance to Local Law Enforcement and Emergency Medical");
-
-
-
+        
     }, 100000);
 });

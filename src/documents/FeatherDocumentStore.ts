@@ -27,7 +27,7 @@ export abstract class FeatherDocumentStore
         this.enableCompression = enableCompression;
     }
 
-    async insert<F extends FeatherDocument>(documents: F[] | F, indexName: string): Promise<void>
+    async insert<F extends FeatherDocument>(documents: F[] | F, collectionName: string): Promise<void>
     {
         // Ensure documents is an array
         if (!Array.isArray(documents)) { 
@@ -47,7 +47,7 @@ export abstract class FeatherDocumentStore
             const uuid = parse(doc.id);
 
             return {
-                pk: indexName,
+                pk: collectionName,
                 id: uuid,
                 t: doc.title,
                 txt: compressed_text_buffer,
@@ -57,10 +57,10 @@ export abstract class FeatherDocumentStore
         });
 
         //Adapter is responsible for inserting the entries in the data store
-        await this.insert_internal(results, indexName);
+        await this.insert_internal(results, collectionName);
     }
 
-    async delete(ids: string | string[], indexName: string): Promise<void>
+    async delete(ids: string | string[], collectionName: string): Promise<void>
     {
         // Ensure documents is an array
         if (!Array.isArray(ids)) {
@@ -71,11 +71,11 @@ export abstract class FeatherDocumentStore
         const id_buffer = ids.map(id => parse(id));
 
         //Adapter is responsible for deleting the entries in the data store
-        await this.delete_internal(id_buffer, indexName);
+        await this.delete_internal(id_buffer, collectionName);
     }
 
 
-    async document_exists(documents: FeatherDocument[] | FeatherDocument, indexName: string): Promise<(FeatherDocumentEntry | undefined)[]>
+    async document_exists(documents: FeatherDocument[] | FeatherDocument, collectionName: string): Promise<(FeatherDocumentEntry | undefined)[]>
     {
         // Ensure documents is an array
         if (!Array.isArray(documents)) {
@@ -83,18 +83,18 @@ export abstract class FeatherDocumentStore
         }
         if(documents.length === 0) throw new Error("No documents to compare");
         const shas = documents.map(doc => sha256.arrayBuffer(doc.text));
-        const sha_matches = await this.get_document_by_sha(shas, indexName);
+        const sha_matches = await this.get_document_by_sha(shas, collectionName);
 
         return sha_matches;
     }
 
-    async bulk_get(uuids: string[], indexName: string): Promise<FeatherDocument[]>
+    async bulk_get(uuids: string[], collectionName: string): Promise<FeatherDocument[]>
     {
         const uuid_buffer = uuids.map(uuid => parse(uuid));
-        const entries = await this.bulk_get_document_by_uuid(uuid_buffer, indexName);
+        const entries = await this.bulk_get_document_by_uuid(uuid_buffer, collectionName);
         const decompressed_entries = await Promise.all(entries.map(async (entry) => {
             if(entry === undefined) return undefined;
-            return await this.decompressFeatherDocumentEntry(entry, indexName);
+            return await this.decompressFeatherDocumentEntry(entry, collectionName);
         })
         // Filter out undefined entries
         .filter((entry) => entry !== undefined));
@@ -102,16 +102,16 @@ export abstract class FeatherDocumentStore
         return decompressed_entries as FeatherDocument[];
     }
 
-    async get<F extends FeatherDocument>(uuid: string, indexName: string): Promise<F | undefined>
+    async get<F extends FeatherDocument>(uuid: string, collectionName: string): Promise<F | undefined>
     {
         const uuidBytes = parse(uuid);
-        const compressed_document = await this.get_document_by_uuid(uuidBytes, indexName);
+        const compressed_document = await this.get_document_by_uuid(uuidBytes, collectionName);
         if(compressed_document === undefined) return undefined;
 
-        return await this.decompressFeatherDocumentEntry(compressed_document, indexName);
+        return await this.decompressFeatherDocumentEntry(compressed_document, collectionName);
     }
 
-    async decompressFeatherDocumentEntry<F extends FeatherDocument>(compressed_document: FeatherDocumentEntry, indexName: string): Promise<F | undefined>
+    async decompressFeatherDocumentEntry<F extends FeatherDocument>(compressed_document: FeatherDocumentEntry, collectionName: string): Promise<F | undefined>
     {
         if(compressed_document === undefined) return undefined;
 
@@ -130,7 +130,7 @@ export abstract class FeatherDocumentStore
         }, {} as Record<string, any>);
 
         return {
-            pk: indexName,
+            pk: collectionName,
             id: uuid_string,
             sha: sha_string,
             title: compressed_document.t,
@@ -141,12 +141,12 @@ export abstract class FeatherDocumentStore
         } as F;
     }
 
-    async searchByTitle<F extends FeatherDocument>(title: string, indexName: string): Promise<F[]>
+    async searchByTitle<F extends FeatherDocument>(title: string, collectionName: string): Promise<F[]>
     {
-        const entries = await this.search_by_title(title, indexName);
+        const entries = await this.search_by_title(title, collectionName);
         const decompressed_entries = await Promise.all(entries.map(async (entry) => {
             if(entry === undefined) return undefined;
-            return await this.decompressFeatherDocumentEntry(entry, indexName);
+            return await this.decompressFeatherDocumentEntry(entry, collectionName);
         })
         // Filter out undefined entries
         .filter((entry) => entry !== undefined));
@@ -154,14 +154,14 @@ export abstract class FeatherDocumentStore
         return decompressed_entries as F[];
     }
     
-    abstract get_document_by_sha(shas: ArrayBuffer[], indexName: string) : Promise<(FeatherDocumentEntry | undefined)[]>;
-    abstract get_document_by_uuid(uuid: Uint8Array, indexName: string) : Promise<FeatherDocumentEntry | undefined>;
-    abstract bulk_get_document_by_uuid(uuids: Uint8Array[], indexName: string) : Promise<FeatherDocumentEntry[]>;
+    abstract get_document_by_sha(shas: ArrayBuffer[], collectionName: string) : Promise<(FeatherDocumentEntry | undefined)[]>;
+    abstract get_document_by_uuid(uuid: Uint8Array, collectionName: string) : Promise<FeatherDocumentEntry | undefined>;
+    abstract bulk_get_document_by_uuid(uuids: Uint8Array[], collectionName: string) : Promise<FeatherDocumentEntry[]>;
 
-    abstract search_by_title(title: string, indexName: string): Promise<FeatherDocumentEntry[]>;
+    abstract search_by_title(title: string, collectionName: string): Promise<FeatherDocumentEntry[]>;
     
-    abstract insert_internal(documents: FeatherDocumentEntry[], indexName: string) : Promise<Uint8Array[]>;
-    abstract delete_internal(uuids: Uint8Array[], indexName: string) : Promise<Uint8Array[]>;
+    abstract insert_internal(documents: FeatherDocumentEntry[], collectionName: string) : Promise<Uint8Array[]>;
+    abstract delete_internal(uuids: Uint8Array[], collectionName: string) : Promise<Uint8Array[]>;
 }   
 
 export function SHAToHexString(array : Uint8Array): string {

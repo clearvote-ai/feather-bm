@@ -19,7 +19,7 @@ describe('DynamoDBDocumentStore', () => {
             const client = DynamoDBDocumentClient.from(local_dynamo_client);
             const table = await client.send( new CreateTableCommand( {
                 TableName: "FeatherDocumentTable",
-                //partition key "indexName" and sort key "sortkey"
+                //partition key "collectionName" and sort key "sortkey"
                 KeySchema: [
                     { AttributeName: "pk", KeyType: "HASH" },
                     { AttributeName: "id", KeyType: "RANGE" }
@@ -32,7 +32,7 @@ describe('DynamoDBDocumentStore', () => {
                 ],
                 GlobalSecondaryIndexes: [
                     {
-                        IndexName: "SHAIndex",
+                        collectionName: "SHAIndex",
                         KeySchema: [
                             { AttributeName: "pk", KeyType: "HASH" },
                             { AttributeName: "sha", KeyType: "RANGE" }
@@ -42,7 +42,7 @@ describe('DynamoDBDocumentStore', () => {
                         },
                     },
                     {
-                        IndexName: "TitleIndex",
+                        collectionName: "TitleIndex",
                         KeySchema: [
                             { AttributeName: "pk", KeyType: "HASH" },
                             { AttributeName: "t", KeyType: "RANGE" }

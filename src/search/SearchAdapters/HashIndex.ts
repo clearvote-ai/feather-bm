@@ -18,8 +18,8 @@ export class HashIndex extends FeatherBMIndex
         return index;
     }
 
-    getEntries(token: string, indexName: string, max_results?: number): Promise<{ idf_entry: InverseDocumentFrequencyEntry; tf_entries: TermFrequencyEntry[]; }> {
-        const pk = `${indexName}#${token}`;
+    getEntries(token: string, collectionName: string, max_results?: number): Promise<{ idf_entry: InverseDocumentFrequencyEntry; tf_entries: TermFrequencyEntry[]; }> {
+        const pk = `${collectionName}#${token}`;
         const idf = this.index[pk].get(stringify(UUID_000)) as InverseDocumentFrequencyEntry;
 
 
@@ -32,8 +32,8 @@ export class HashIndex extends FeatherBMIndex
         return Promise.resolve({ idf_entry: idf, tf_entries: tf_array });
     }
 
-    getEntriesGlobal(token: string, indexName: string, max_results?: number): Promise<{ idf_entry: InverseDocumentFrequencyEntry; tf_entries: TermFrequencyEntry[]; }> {
-        const pk = `${indexName}#${token}`;
+    getEntriesGlobal(token: string, collectionName: string, max_results?: number): Promise<{ idf_entry: InverseDocumentFrequencyEntry; tf_entries: TermFrequencyEntry[]; }> {
+        const pk = `${collectionName}#${token}`;
         const idf = this.index[pk].get(stringify(UUID_000)) as InverseDocumentFrequencyEntry;
 
         //collect the first max_results entries
@@ -55,8 +55,8 @@ export class HashIndex extends FeatherBMIndex
         return Promise.resolve()
     }
 
-    get_global_entry_internal(indexName: string): Promise<GlobalStatisticsEntry> {
-        const pk = `${indexName}#global_stats`;
+    get_global_entry_internal(collectionName: string): Promise<GlobalStatisticsEntry> {
+        const pk = `${collectionName}#global_stats`;
         const entry = this.global_entry_store[pk];
         return Promise.resolve(entry);
     }

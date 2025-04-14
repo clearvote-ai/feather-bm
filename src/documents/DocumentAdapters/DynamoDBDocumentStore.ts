@@ -15,25 +15,25 @@ export class DynamoDBDocumentStore extends FeatherDocumentStore
         this.client = client;
     }
 
-    get_document_by_sha(shas: ArrayBuffer[], indexName: string): Promise<(FeatherDocumentEntry | undefined)[]> {
-        return Promise.all(shas.map(sha => this.getDocumentBySHA(this.client, this.tableName, indexName, sha)));
+    get_document_by_sha(shas: ArrayBuffer[], collectionName: string): Promise<(FeatherDocumentEntry | undefined)[]> {
+        return Promise.all(shas.map(sha => this.getDocumentBySHA(this.client, this.tableName, collectionName, sha)));
     }
 
-    get_document_by_uuid(uuid: Uint8Array, indexName: string): Promise<FeatherDocumentEntry | undefined> {
-        return this.getDocumentByUUID(this.client, this.tableName, indexName, uuid);
+    get_document_by_uuid(uuid: Uint8Array, collectionName: string): Promise<FeatherDocumentEntry | undefined> {
+        return this.getDocumentByUUID(this.client, this.tableName, collectionName, uuid);
     }
 
-    async search_by_title(title: string, indexName: string): Promise<FeatherDocumentEntry[]> {
+    async search_by_title(title: string, collectionName: string): Promise<FeatherDocumentEntry[]> {
         //search for titles that begin with or equal the given title
         //eg. title:"fran" should match "franchise tax"
 
         const params = {
             TableName: this.tableName,
-            IndexName: "TitleIndex",
+            collectionName: "TitleIndex",
             KeyConditionExpression: "pk = :pk and begins_with(t, :t)",
             ExpressionAttributeValues: {
                 ":t": title,
-                ":pk": indexName
+                ":pk": collectionName
             },
         };
 
@@ -53,16 +53,16 @@ export class DynamoDBDocumentStore extends FeatherDocumentStore
         return await this.putDynamoDBDocumentEntryBatch(this.client, this.tableName, documents);
     }
 
-    async delete_internal(uuids: Uint8Array[], indexName: string): Promise<Uint8Array[]> {
-        return await this.deleteDynamoDBEntryBatch(this.client, this.tableName, indexName, uuids);
+    async delete_internal(uuids: Uint8Array[], collectionName: string): Promise<Uint8Array[]> {
+        return await this.deleteDynamoDBEntryBatch(this.client, this.tableName, collectionName, uuids);
     }
 
-    async getDocumentByUUID(client: DynamoDBDocumentClient, table_name: string, indexName: string, uuid: Uint8Array): Promise<FeatherDocumentEntry | undefined>
+    async getDocumentByUUID(client: DynamoDBDocumentClient, table_name: string, collectionName: string, uuid: Uint8Array): Promise<FeatherDocumentEntry | undefined>
     {
         const params = {
             TableName: table_name,
             Key: {
-                pk: indexName,
+                pk: collectionName,
                 id: uuid
             }
         };
@@ -78,12 +78,12 @@ export class DynamoDBDocumentStore extends FeatherDocumentStore
         return undefined;
     }
 
-    async bulk_get_document_by_uuid(uuids: Uint8Array[], indexName: string): Promise<FeatherDocumentEntry[]> {
+    async bulk_get_document_by_uuid(uuids: Uint8Array[], collectionName: string): Promise<FeatherDocumentEntry[]> {
         const batch_params: BatchGetCommandInput = {
             RequestItems: {
                 [this.tableName]: {
                     Keys: uuids.map(uuid => ({
-                        pk: indexName,
+                        pk: collectionName,
                         id: uuid
                     }))
                 }
@@ -100,7 +100,7 @@ export class DynamoDBDocumentStore extends FeatherDocumentStore
         }
     }
 
-    async deleteDynamoDBEntryBatch(client: DynamoDBDocumentClient, table_name: string, indexName: string, uuids: Uint8Array[]): Promise<Uint8Array[]> 
+    async deleteDynamoDBEntryBatch(client: DynamoDBDocumentClient, table_name: string, collectionName: string, uuids: Uint8Array[]): Promise<Uint8Array[]> 
     {
         const entries : Uint8Array[] = [];
 
@@ -110,7 +110,7 @@ export class DynamoDBDocumentStore extends FeatherDocumentStore
             const deleteRequests = batch.map(uuid => ({
                 DeleteRequest: {
                     Key: {
-                        pk: indexName,
+                        pk: collectionName,
                         id: uuid,
                     }
                 }
@@ -166,17 +166,17 @@ export class DynamoDBDocumentStore extends FeatherDocumentStore
     }
 
     //TODO: convert this to a batch call
-    async getDocumentBySHA(client: DynamoDBDocumentClient, table_name: string, indexName: string, sha: ArrayBuffer): Promise<FeatherDocumentEntry | undefined>
+    async getDocumentBySHA(client: DynamoDBDocumentClient, table_name: string, collectionName: string, sha: ArrayBuffer): Promise<FeatherDocumentEntry | undefined>
     {
-        //sha_index pk is the indexName
+        //sha_index pk is the collectionName
         //and the sha is the sort key
         const params = {
             TableName: table_name,
-            IndexName: "SHAIndex",
+            collectionName: "SHAIndex",
             KeyConditionExpression: "pk = :pk and sha = :sha",
             ExpressionAttributeValues: {
                 ":sha": new Uint8Array(sha),
-                ":pk": indexName
+                ":pk": collectionName
             }
         };
         
@@ -196,7 +196,7 @@ export class DynamoDBDocumentStore extends FeatherDocumentStore
         
         const params = {
             TableName: table_name,
-            IndexName: "title_index",
+            collectionName: "title_index",
             //use begins with to match the title
             KeyConditionExpression: "title = :title",
             ExpressionAttributeValues: {

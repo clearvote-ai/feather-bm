@@ -15,22 +15,22 @@ export class DynamoDBIndex extends FeatherBMIndex
         this.client = client;
     }
 
-    async getEntries(token: string, indexName: string, max_results?: number): Promise<{ idf_entry: InverseDocumentFrequencyEntry; tf_entries: TermFrequencyEntry[]; }> {
+    async getEntries(token: string, collectionName: string, max_results?: number): Promise<{ idf_entry: InverseDocumentFrequencyEntry; tf_entries: TermFrequencyEntry[]; }> {
         try {
-            const idf_entry = await this.getInverseDocumentFrequencyEntry(token, indexName);
-            const tf_entries = await this.getTermFrequencyEntries(token, indexName);
-            return { idf_entry: { pk: `${indexName}#${token}`, id: UUID_000, idf: idf_entry }, tf_entries };
+            const idf_entry = await this.getInverseDocumentFrequencyEntry(token, collectionName);
+            const tf_entries = await this.getTermFrequencyEntries(token, collectionName);
+            return { idf_entry: { pk: `${collectionName}#${token}`, id: UUID_000, idf: idf_entry }, tf_entries };
         } catch (error) {
             console.error("Error getting entries:", error);
             throw new Error("Failed to retrieve entries from DynamoDB.");
         }
     }
 
-    async getEntriesGlobal(token: string, indexName: string, max_results?: number): Promise<{ idf_entry: InverseDocumentFrequencyEntry; tf_entries: TermFrequencyEntry[]; }> {
+    async getEntriesGlobal(token: string, collectionName: string, max_results?: number): Promise<{ idf_entry: InverseDocumentFrequencyEntry; tf_entries: TermFrequencyEntry[]; }> {
         try {
-            const idf_entry = await this.getInverseDocumentFrequencyEntry(token, indexName, max_results);
-            const tf_entries = await this.getTermFrequencyEntriesGlobal(token, indexName, max_results);
-            return { idf_entry: { pk: `${indexName}#${token}`, id: UUID_000, idf: idf_entry }, tf_entries };
+            const idf_entry = await this.getInverseDocumentFrequencyEntry(token, collectionName, max_results);
+            const tf_entries = await this.getTermFrequencyEntriesGlobal(token, collectionName, max_results);
+            return { idf_entry: { pk: `${collectionName}#${token}`, id: UUID_000, idf: idf_entry }, tf_entries };
         } catch (error) {
             console.error("Error getting entries:", error);
             throw new Error("Failed to retrieve entries from DynamoDB.");
@@ -60,11 +60,11 @@ export class DynamoDBIndex extends FeatherBMIndex
         return index;
     }
 
-    async get_global_entry_internal(indexName: string): Promise<GlobalStatisticsEntry | undefined> {
+    async get_global_entry_internal(collectionName: string): Promise<GlobalStatisticsEntry | undefined> {
         const params = {
             TableName: this.tableName,
             Key: {
-                pk: `${indexName}#global_stats`,
+                pk: `${collectionName}#global_stats`,
                 id: UUID_000
             }
         };
@@ -72,7 +72,7 @@ export class DynamoDBIndex extends FeatherBMIndex
         try {
             const data = await this.client.send(new GetCommand(params));
             if(data.Item === undefined) {
-                console.log("No global stats entry found for index:", indexName);
+                console.log("No global stats entry found for index:", collectionName);
                 return undefined;
             }
             return data.Item as GlobalStatisticsEntry;
@@ -83,12 +83,12 @@ export class DynamoDBIndex extends FeatherBMIndex
         return undefined; // return a default value if not found
     }
 
-    async getTermFrequencyEntries(token: string, indexName: string, max_results?: number): Promise<TermFrequencyEntry[]> {
+    async getTermFrequencyEntries(token: string, collectionName: string, max_results?: number): Promise<TermFrequencyEntry[]> {
         const params = {
             TableName: this.tableName,
             KeyConditionExpression: "pk = :pk",
             ExpressionAttributeValues: {
-                ":pk": `${indexName}#${token}`,
+                ":pk": `${collectionName}#${token}`,
             },
             Limit: max_results,
         };
@@ -108,14 +108,14 @@ export class DynamoDBIndex extends FeatherBMIndex
         return [];
     }
 
-    async getTermFrequencyEntriesGlobal(token: string, indexName: string, max_results?: number): Promise<TermFrequencyEntry[]> {
+    async getTermFrequencyEntriesGlobal(token: string, collectionName: string, max_results?: number): Promise<TermFrequencyEntry[]> {
         //retrieve the tf entries from "GlobalIndex" in reverse order
         const params = {
             TableName: this.tableName,
-            IndexName: "GlobalIndex",
+            collectionName: "GlobalIndex",
             KeyConditionExpression: "pk = :pk",
             ExpressionAttributeValues: {
-                ":pk": `${indexName}#${token}`,
+                ":pk": `${collectionName}#${token}`,
             },
             Limit: max_results,
             ScanIndexForward: false // to get the highest tf values first
@@ -136,11 +136,11 @@ export class DynamoDBIndex extends FeatherBMIndex
         return [];
     }
 
-    async getInverseDocumentFrequencyEntry(token: string, indexName: string, max_results?:number): Promise<number> {  
+    async getInverseDocumentFrequencyEntry(token: string, collectionName: string, max_results?:number): Promise<number> {  
         const params = {
             TableName: this.tableName,
             Key: {
-                pk: `${indexName}#${token}`,
+                pk: `${collectionName}#${token}`,
                 id: UUID_000 // placeholder for idf entry
             },
             Limit: max_results,
@@ -237,4 +237,4 @@ export class DynamoDBIndex extends FeatherBMIndex
 }
 
 //TODO: unit test this implementation
-//TODO: convert document store functions to accept "indexName" as a parameter
+//TODO: convert document store functions to accept "collectionName" as a parameter

@@ -37,50 +37,50 @@ export class FeatherBM<T extends FeatherBMIndex, K extends FeatherDocumentStore>
         return new FeatherBM<HashIndex,HashDocumentStore>(index, storage);
     }
 
-    async get<F extends FeatherDocument>(uuid: string, indexName: string): Promise<F | undefined>
+    async get<F extends FeatherDocument>(uuid: string, collectionName: string): Promise<F | undefined>
     {
-        return await this.storage.get<F>(uuid, indexName);
+        return await this.storage.get<F>(uuid, collectionName);
     }
 
-    async searchByTitle<F extends FeatherDocument>(query: string, indexName: string): Promise<F[]>
+    async searchByTitle<F extends FeatherDocument>(query: string, collectionName: string): Promise<F[]>
     {
-        return await this.storage.searchByTitle<F>(query, indexName);
+        return await this.storage.searchByTitle<F>(query, collectionName);
     }
 
-    async query<F extends FeatherDocument>(query: string, indexName: string, global: boolean = true, maxResults: number = 100): Promise<F[]>
+    async query<F extends FeatherDocument>(query: string, collectionName: string, global: boolean = true, maxResults: number = 100): Promise<F[]>
     {
-        const scores = await this.index.query(query, indexName, global, maxResults);
+        const scores = await this.index.query(query, collectionName, global, maxResults);
         const ids = scores.map((score) => score.id);
-        const documents = await this.storage.bulk_get(ids, indexName);
+        const documents = await this.storage.bulk_get(ids, collectionName);
         const filtered_documents = documents.filter((doc) => doc !== undefined) as F[];
         return filtered_documents;
     }
 
-    async insert(documents: IngestionDocument | IngestionDocument[], indexName: string): Promise<void>
+    async insert(documents: IngestionDocument | IngestionDocument[], collectionName: string): Promise<void>
     {
         if (!Array.isArray(documents)) {
             documents = [documents];
         }
 
-        const featherDocuments = documents.map((doc) => this.ingestDocument(doc, indexName));
+        const featherDocuments = documents.map((doc) => this.ingestDocument(doc, collectionName));
 
-        await this.storage.insert(featherDocuments, indexName);
-        await this.index.insert(featherDocuments, indexName);
+        await this.storage.insert(featherDocuments, collectionName);
+        await this.index.insert(featherDocuments, collectionName);
     }
 
-    async delete(ids: string | string[], indexName: string): Promise<void>
+    async delete(ids: string | string[], collectionName: string): Promise<void>
     {
         if (!Array.isArray(ids)) {
             ids = [ids];
         }
 
-        const docs = await this.storage.bulk_get(ids, indexName);
+        const docs = await this.storage.bulk_get(ids, collectionName);
 
-        await this.storage.delete(ids, indexName);
-        await this.index.delete(docs, indexName);
+        await this.storage.delete(ids, collectionName);
+        await this.index.delete(docs, collectionName);
     }
 
-    private ingestDocument<D extends IngestionDocument, F extends FeatherDocument>(doc: D, indexName: string): F
+    private ingestDocument<D extends IngestionDocument, F extends FeatherDocument>(doc: D, collectionName: string): F
     {
         const { title, text, published, iso8601 } = doc;
 
@@ -99,7 +99,7 @@ export class FeatherBM<T extends FeatherBMIndex, K extends FeatherDocumentStore>
         const sha = sha256(text);
 
         return {
-            pk: indexName,
+            pk: collectionName,
             id: id,
             title: title,
             text: text,

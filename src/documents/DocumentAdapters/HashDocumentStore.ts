@@ -21,9 +21,9 @@ export class HashDocumentStore extends FeatherDocumentStore
     //secondary index for sha maps from sha to document id
     sha_index: BTree<string, string> = new BTree<string, string>();
 
-    public static async from(documents: FeatherDocument[], indexName: string, enableCompression: boolean = false): Promise<HashDocumentStore> {
+    public static async from(documents: FeatherDocument[], collectionName: string, enableCompression: boolean = false): Promise<HashDocumentStore> {
         const store = new HashDocumentStore(enableCompression);
-        await store.insert(documents, indexName);
+        await store.insert(documents, collectionName);
         return store;
     }
 
@@ -46,7 +46,7 @@ export class HashDocumentStore extends FeatherDocumentStore
         return Promise.resolve(entry);
     }
 
-    bulk_get_document_by_uuid(uuids: Uint8Array[], indexName: string): Promise<FeatherDocumentEntry[]> {
+    bulk_get_document_by_uuid(uuids: Uint8Array[], collectionName: string): Promise<FeatherDocumentEntry[]> {
         const entries: FeatherDocumentEntry[] = [];
         for (const uuid of uuids) {
             const uuid_string = stringify(uuid);

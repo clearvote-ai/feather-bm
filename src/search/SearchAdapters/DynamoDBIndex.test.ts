@@ -20,7 +20,7 @@ describe('DynamoDB', () => {
         const client = DynamoDBDocumentClient.from(local_dynamo_client);
         const table = await client.send( new CreateTableCommand( {
             TableName: "FeatherIndex",
-            //partition key "indexName" and sort key "sortkey"
+            //partition key "collectionName" and sort key "sortkey"
             KeySchema: [
                 { AttributeName: "pk", KeyType: "HASH" },
                 { AttributeName: "id", KeyType: "RANGE" }
@@ -32,7 +32,7 @@ describe('DynamoDB', () => {
             ],
             GlobalSecondaryIndexes: [
                 {
-                    IndexName: "GlobalIndex",
+                    collectionName: "GlobalIndex",
                     KeySchema: [
                         { AttributeName: "pk", KeyType: "HASH" },
                         { AttributeName: "tf", KeyType: "RANGE" }
