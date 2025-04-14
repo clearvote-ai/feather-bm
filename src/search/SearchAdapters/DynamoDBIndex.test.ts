@@ -32,7 +32,7 @@ describe('DynamoDB', () => {
             ],
             GlobalSecondaryIndexes: [
                 {
-                    collectionName: "GlobalIndex",
+                    IndexName: "GlobalIndex",
                     KeySchema: [
                         { AttributeName: "pk", KeyType: "HASH" },
                         { AttributeName: "tf", KeyType: "RANGE" }
